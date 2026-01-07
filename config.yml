@@ -1,0 +1,21 @@
+# System Manager Configuration
+# This file defines the containers that the system_manager can control.
+#
+# Services are discovered dynamically from each agent - no need to list them here.
+# The agent (running in each container) is the source of truth for available services.
+#
+# Optional: You can add service labels for better display names in the UI.
+# If a service is not listed here, its ID will be used as the label.
+
+containers:
+  ai_worker:
+    socket_path: "/agents/ai_worker/s6_agent.sock"
+    # Optional: Service labels for better display names
+    # Services are automatically discovered from the agent at /run/service
+    # services:
+    #   - id: "ffw_bg2_follower_ai"
+    #     label: "FFW BG2 Follower AI"
+  physical_ai_server:
+    socket_path: "/agents/physical_ai_server/s6_agent.sock"
+    # Optional: Service labels for better display names
+    # Services are automatically discovered from the agent at /run/service
