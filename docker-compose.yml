@@ -26,15 +26,15 @@ services:
     container_name: system_manager_ui
     build:
       context: ./system_manager_ui
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     restart: always
     network_mode: host
-    volumes:
-      # Mount source code for hot-reload in development
-      - ./system_manager_ui:/app
-      # Exclude node_modules from host to use container's node_modules
-      - /app/node_modules
-      - /app/.next
+    # volumes:
+    #   # Mount source code for hot-reload in development
+    #   - ./system_manager_ui:/app
+    #   # Exclude node_modules from host to use container's node_modules
+    #   - /app/node_modules
+    #   - /app/.next
     environment:
       - NEXT_PUBLIC_API_URL=http://127.0.0.1:8081
       - NODE_ENV=production
