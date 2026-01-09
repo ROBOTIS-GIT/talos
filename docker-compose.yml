@@ -10,8 +10,7 @@ services:
       # Mount agent sockets directory (read-only for system_manager)
       # Path is relative to this docker-compose.yml location
       # Each container's socket is mounted to /agents/{container_name}
-      - ../ai_worker/docker/agent_sockets/ai_worker:/agents/ai_worker
-      - ../physical_ai_tools/docker/agent_sockets/physical_ai_server:/agents/physical_ai_server
+      - /var/run/robotis/agent_sockets:/agents
       # Mount config file
       - ./config.yml:/app/config.yml
       # Mount Docker socket for Docker API access
