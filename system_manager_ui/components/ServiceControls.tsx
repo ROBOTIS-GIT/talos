@@ -7,12 +7,14 @@ import type { ServiceControlResponse } from "@/types/api";
 interface ServiceControlsProps {
   container: string;
   service: string;
+  isUp?: boolean;
   onActionComplete?: () => void;
 }
 
 export default function ServiceControls({
   container,
   service,
+  isUp = false,
   onActionComplete,
 }: ServiceControlsProps) {
   const [loading, setLoading] = useState<string | null>(null);
@@ -54,54 +56,60 @@ export default function ServiceControls({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex gap-2">
-        <button
-          onClick={() => handleAction("up")}
-          disabled={loading !== null}
-          style={buttonStyle(true)}
-          onMouseEnter={(e) => {
-            if (loading === null) {
-              e.currentTarget.style.backgroundColor = "var(--vscode-button-hoverBackground)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "var(--vscode-button-background)";
-          }}
-        >
-          {loading === "up" ? "Starting..." : "Start"}
-        </button>
-        <button
-          onClick={() => handleAction("down")}
-          disabled={loading !== null}
-          style={buttonStyle()}
-          onMouseEnter={(e) => {
-            if (loading === null) {
-              e.currentTarget.style.backgroundColor = "var(--vscode-button-secondaryHoverBackground)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "var(--vscode-button-secondaryBackground)";
-          }}
-        >
-          {loading === "down" ? "Stopping..." : "Stop"}
-        </button>
-        <button
-          onClick={() => handleAction("restart")}
-          disabled={loading !== null}
-          style={buttonStyle()}
-          onMouseEnter={(e) => {
-            if (loading === null) {
-              e.currentTarget.style.backgroundColor = "var(--vscode-button-secondaryHoverBackground)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "var(--vscode-button-secondaryBackground)";
-          }}
-        >
-          {loading === "restart" ? "Restarting..." : "Restart"}
-        </button>
+        {!isUp && (
+          <button
+            onClick={() => handleAction("up")}
+            disabled={loading !== null}
+            style={buttonStyle(true)}
+            onMouseEnter={(e) => {
+              if (loading === null) {
+                e.currentTarget.style.backgroundColor = "var(--vscode-button-hoverBackground)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--vscode-button-background)";
+            }}
+          >
+            {loading === "up" ? "Starting..." : "Start"}
+          </button>
+        )}
+        {isUp && (
+          <button
+            onClick={() => handleAction("down")}
+            disabled={loading !== null}
+            style={buttonStyle()}
+            onMouseEnter={(e) => {
+              if (loading === null) {
+                e.currentTarget.style.backgroundColor = "var(--vscode-button-secondaryHoverBackground)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--vscode-button-secondaryBackground)";
+            }}
+          >
+            {loading === "down" ? "Stopping..." : "Stop"}
+          </button>
+        )}
+        {isUp && (
+          <button
+            onClick={() => handleAction("restart")}
+            disabled={loading !== null}
+            style={buttonStyle()}
+            onMouseEnter={(e) => {
+              if (loading === null) {
+                e.currentTarget.style.backgroundColor = "var(--vscode-button-secondaryHoverBackground)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--vscode-button-secondaryBackground)";
+            }}
+          >
+            {loading === "restart" ? "Restarting..." : "Restart"}
+          </button>
+        )}
       </div>
       {error && (
-        <div 
+        <div
           className="text-xs px-2 py-1 rounded"
           style={{
             color: "var(--vscode-errorForeground)",

@@ -1,10 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import ServiceCard from "@/components/ServiceCard";
 import { getServices, getServiceStatuses } from "@/lib/api";
 import type { ServiceInfo, ServiceStatusResponse } from "@/types/api";
+
+// s6 System Services List
+const SYSTEM_SERVICES = [
+  "s6-agent",
+  "s6-linux-init-shutdownd",
+  "s6rc-fdholder",
+  "s6rc-oneshot-runner",
+];
+
+// Check if the service is a system service
+const isSystemService = (serviceId: string): boolean => {
+  return SYSTEM_SERVICES.includes(serviceId);
+};
 
 export default function ContainerDetailPage() {
   const params = useParams();
@@ -17,6 +30,27 @@ export default function ContainerDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [showSystemServices, setShowSystemServices] = useState(false);
+
+  // Separate services into regular and system services
+  const { regularServices, systemServices, systemServicesCount } = useMemo(() => {
+    const regular: ServiceInfo[] = [];
+    const system: ServiceInfo[] = [];
+
+    services.forEach((service) => {
+      if (isSystemService(service.id)) {
+        system.push(service);
+      } else {
+        regular.push(service);
+      }
+    });
+
+    return {
+      regularServices: regular,
+      systemServices: system,
+      systemServicesCount: system.length,
+    };
+  }, [services]);
 
   useEffect(() => {
     loadData();
@@ -147,6 +181,23 @@ export default function ContainerDetailPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {systemServicesCount > 0 && (
+            <label
+              className="flex items-center gap-2 text-sm cursor-pointer"
+              style={{ color: "var(--vscode-foreground)" }}
+            >
+              <input
+                type="checkbox"
+                checked={showSystemServices}
+                onChange={(e) => setShowSystemServices(e.target.checked)}
+                style={{
+                  accentColor: "var(--vscode-button-background)",
+                  cursor: "pointer"
+                }}
+              />
+              Show system services
+            </label>
+          )}
           {refreshing && (
             <span
               className="text-sm"
@@ -190,16 +241,52 @@ export default function ContainerDetailPage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4">
-          {services.map((service) => (
-            <ServiceCard
-              key={service.id}
-              container={containerName}
-              service={service}
-              status={serviceStatuses[service.id]}
-              onStatusUpdate={handleStatusUpdate}
-            />
-          ))}
+        <div className="space-y-6">
+          {/* Application Services */}
+          {regularServices.length > 0 && (
+            <div>
+              <h2
+                className="text-lg font-medium mb-4"
+                style={{ color: "var(--vscode-foreground)" }}
+              >
+                Application Services ({regularServices.length})
+              </h2>
+              <div className="grid grid-cols-1 gap-4">
+                {regularServices.map((service) => (
+                  <ServiceCard
+                    key={service.id}
+                    container={containerName}
+                    service={service}
+                    status={serviceStatuses[service.id]}
+                    onStatusUpdate={handleStatusUpdate}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* System Services */}
+          {systemServicesCount > 0 && showSystemServices && (
+            <div>
+              <h2
+                className="text-lg font-medium mb-4"
+                style={{ color: "var(--vscode-foreground)" }}
+              >
+                System Services ({systemServicesCount})
+              </h2>
+              <div className="grid grid-cols-1 gap-4">
+                {systemServices.map((service) => (
+                  <ServiceCard
+                    key={service.id}
+                    container={containerName}
+                    service={service}
+                    status={serviceStatuses[service.id]}
+                    onStatusUpdate={handleStatusUpdate}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
