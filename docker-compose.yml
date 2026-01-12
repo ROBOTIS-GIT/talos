@@ -11,8 +11,6 @@ services:
       # Use /var/run/robotis/agent_sockets/ for consistency with container configurations
       # Each container's socket is mounted to /agents/{container_name}
       - /var/run/robotis/agent_sockets:/agents
-      - /var/run/robotis/agent_sockets/ai_worker:/agents/ai_worker
-      - /var/run/robotis/agent_sockets/physical_ai_server:/agents/physical_ai_server
       # Mount config file
       - ./config.yml:/app/config.yml
       # Mount Docker socket for Docker API access
