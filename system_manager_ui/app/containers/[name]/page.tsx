@@ -198,14 +198,6 @@ export default function ContainerDetailPage() {
               Show system services
             </label>
           )}
-          {refreshing && (
-            <span
-              className="text-sm"
-              style={{ color: "var(--vscode-descriptionForeground)" }}
-            >
-              Refreshing...
-            </span>
-          )}
           <button
             onClick={loadStatuses}
             className="px-4 py-2 text-sm font-normal rounded"
