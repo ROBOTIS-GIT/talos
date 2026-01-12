@@ -54,6 +54,13 @@ export interface ServiceLogsResponse {
   log_path: string | null;
 }
 
+export interface ServiceLogsClearResponse {
+  container: string;
+  service: string;
+  message: string;
+  log_path: string | null;
+}
+
 export interface ServiceRunScriptResponse {
   container: string;
   service: string;

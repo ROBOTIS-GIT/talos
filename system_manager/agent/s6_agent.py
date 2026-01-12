@@ -241,10 +241,14 @@ async def get_service_logs(name: str, tail: int = 100, strip_ansi: bool = False)
     log_path = Path(f"/var/log/{name}/current")
 
     if not log_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Log file not found for service '{name}'. Service may not have logging enabled or log directory doesn't exist.",
-        )
+        # Return empty logs instead of 404 when log file doesn't exist
+        logger.debug(f"Log file not found for service '{name}', returning empty logs")
+        return {
+            "service": name,
+            "logs": "",
+            "tail": tail,
+            "log_path": str(log_path),
+        }
 
     try:
         # Use tail command to get last N lines
@@ -283,6 +287,54 @@ async def get_service_logs(name: str, tail: int = 100, strip_ansi: bool = False)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to read logs: {str(e)}",
+        )
+
+
+@app.delete(
+    "/services/{name}/logs",
+    tags=["services"],
+    summary="Clear service logs",
+    description="Clear (truncate) logs for a service",
+)
+async def clear_service_logs(name: str):
+    """Clear logs for a service.
+
+    Truncates the log file at /var/log/{service_name}/current to clear all logs.
+    Note: s6-log will continue writing new logs to this file after clearing.
+
+    Args:
+        name: Service name.
+
+    Returns:
+        Dictionary with service name and success message.
+
+    Raises:
+        HTTPException: 404 if service not found or logs unavailable, 500 on other errors.
+    """
+    # s6-overlay logs are stored in /var/log/{service_name}/current
+    log_path = Path(f"/var/log/{name}/current")
+
+    if not log_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Log file not found for service '{name}'. Service may not have logging enabled or log directory doesn't exist.",
+        )
+
+    try:
+        # Truncate the log file (clear all contents)
+        log_path.open("w").close()
+        logger.info(f"Successfully cleared logs for service '{name}'")
+
+        return {
+            "service": name,
+            "message": "Logs cleared successfully",
+            "log_path": str(log_path),
+        }
+    except Exception as e:
+        logger.error(f"Error clearing logs for service '{name}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to clear logs: {str(e)}",
         )
 
 

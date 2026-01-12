@@ -188,6 +188,15 @@ class ServiceLogsResponse(BaseModel):
     log_path: Optional[str] = Field(None, description="Path to log file in container")
 
 
+class ServiceLogsClearResponse(BaseModel):
+    """Response for DELETE /containers/{container}/services/{service}/logs."""
+
+    container: str = Field(..., description="Container name")
+    service: str = Field(..., description="Service ID")
+    message: str = Field(..., description="Success message")
+    log_path: Optional[str] = Field(None, description="Path to log file in container")
+
+
 class ServiceRunScriptResponse(BaseModel):
     """Response for GET /containers/{container}/services/{service}/run."""
 

@@ -6,6 +6,7 @@ import type {
   ServiceStatusListResponse,
   ServiceControlResponse,
   ServiceLogsResponse,
+  ServiceLogsClearResponse,
   ServiceActionRequest,
   DockerContainerListResponse,
   DockerContainerStatus,
@@ -136,6 +137,20 @@ export async function getServiceLogs(
       {
         params: { tail },
       }
+    );
+    return response.data;
+  } catch (error) {
+    handleError(error);
+  }
+}
+
+export async function clearServiceLogs(
+  container: string,
+  service: string
+): Promise<ServiceLogsClearResponse> {
+  try {
+    const response = await apiClient.delete<ServiceLogsClearResponse>(
+      `/containers/${container}/services/${service}/logs`
     );
     return response.data;
   } catch (error) {

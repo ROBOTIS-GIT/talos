@@ -180,10 +180,10 @@ class AgentClient:
 
         Returns:
             Response JSON from agent's /services/{name}/logs endpoint.
+            Returns empty logs dict if log file doesn't exist (404).
 
         Raises:
-            requests.RequestException: If request fails.
-            requests.HTTPError: If agent returns error status (e.g., 404).
+            requests.RequestException: If request fails (except 404 which returns empty logs).
         """
         session = self._get_session()
         base_url = self._get_base_url()
@@ -193,6 +193,47 @@ class AgentClient:
                 f"{base_url}/services/{service_name}/logs",
                 params={"tail": tail} if tail else None,
             )
+            # Check status code before raising error
+            if response.status_code == 404:
+                # If log file doesn't exist (404), return empty logs instead of raising error
+                logger.info(f"Log file not found for service '{service_name}' (service may not have started yet). Returning empty logs.")
+                return {
+                    "service": service_name,
+                    "logs": "",
+                    "tail": tail,
+                    "log_path": None,
+                }
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.HTTPError as e:
+            # Handle other HTTP errors
+            logger.error(f"HTTP error communicating with agent at {self.socket_path}: {e}")
+            raise
+        except requests.RequestException as e:
+            logger.error(f"Failed to communicate with agent at {self.socket_path}: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Agent returned error status for service '{service_name}': {e}")
+            raise
+
+    def clear_service_logs(self, service_name: str) -> dict:
+        """Clear logs for a service from agent.
+
+        Args:
+            service_name: Name of the service.
+
+        Returns:
+            Response JSON from agent's DELETE /services/{name}/logs endpoint.
+
+        Raises:
+            requests.RequestException: If request fails.
+            requests.HTTPError: If agent returns error status (e.g., 404).
+        """
+        session = self._get_session()
+        base_url = self._get_base_url()
+        logger.debug(f"Clearing logs for service '{service_name}' via agent at {self.socket_path}")
+        try:
+            response = session.delete(f"{base_url}/services/{service_name}/logs")
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:

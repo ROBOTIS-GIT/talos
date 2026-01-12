@@ -29,6 +29,7 @@ from system_manager.models import (
     ServiceInfo,
     ServiceListResponse,
     ServiceLogsResponse,
+    ServiceLogsClearResponse,
     ServiceRunScriptResponse,
     ServiceRunScriptUpdateRequest,
     ServiceStatusListResponse,
@@ -603,6 +604,70 @@ async def get_service_logs(
         service=service,
         logs=agent_response.get("logs", ""),
         tail=agent_response.get("tail", tail),
+        log_path=agent_response.get("log_path"),
+    )
+
+
+@app.delete(
+    "/containers/{container}/services/{service}/logs",
+    response_model=ServiceLogsClearResponse,
+    tags=["services"],
+    summary="Clear service logs",
+    description="Clear (truncate) logs for a service in a container",
+    response_description="Confirmation that logs were cleared",
+)
+async def clear_service_logs(
+    container: str,
+    service: str,
+) -> ServiceLogsClearResponse:
+    """Clear logs for a service in a container.
+
+    Fetches logs from the agent's DELETE /services/{name}/logs endpoint, which truncates
+    the log file at /var/log/{service_name}/current.
+
+    Args:
+        container: Name of the container (e.g., "ai_worker")
+        service: Service ID (e.g., "ffw_bg2_follower_ai")
+
+    Returns:
+        ServiceLogsClearResponse confirming that logs were cleared.
+
+    Raises:
+        HTTPException: 404 if container/service not found, 503 if agent unavailable.
+
+    Example Response:
+        ```json
+        {
+          "container": "ai_worker",
+          "service": "ffw_bg2_follower_ai",
+          "message": "Logs cleared successfully",
+          "log_path": "/var/log/ffw_bg2_follower_ai/current"
+        }
+        ```
+    """
+    config = get_config()
+    if container not in config.containers:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Container '{container}' not found",
+        )
+
+    # Clear logs via agent
+    try:
+        client = get_agent_client(container)
+        agent_response = client.clear_service_logs(service)
+        logger.info(f"Successfully cleared logs for service '{service}' in container '{container}'")
+    except Exception as e:
+        logger.error(f"Failed to clear service logs from agent: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Failed to communicate with agent: {str(e)}",
+        )
+
+    return ServiceLogsClearResponse(
+        container=container,
+        service=service,
+        message=agent_response.get("message", "Logs cleared successfully"),
         log_path=agent_response.get("log_path"),
     )
 
