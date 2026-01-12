@@ -10,8 +10,7 @@ services:
       # Mount agent sockets directory (read-only for system_manager)
       # Path is relative to this docker-compose.yml location
       # Each container's socket is mounted to /agents/{container_name}
-      - ../ai_worker/docker/agent_sockets/ai_worker:/agents/ai_worker
-      - ../physical_ai_tools/docker/agent_sockets/physical_ai_server:/agents/physical_ai_server
+      - /var/run/robotis/agent_sockets:/agents
       # Mount config file
       - ./config.yml:/app/config.yml
       # Mount Docker socket for Docker API access
@@ -26,19 +25,18 @@ services:
     container_name: system_manager_ui
     build:
       context: ./system_manager_ui
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     restart: always
     network_mode: host
-    volumes:
-      # Mount source code for hot-reload in development
-      - ./system_manager_ui:/app
-      # Exclude node_modules from host to use container's node_modules
-      - /app/node_modules
-      # Exclude .next build cache from host
-      - /app/.next
+    # volumes:
+    #   # Mount source code for hot-reload in development
+    #   - ./system_manager_ui:/app
+    #   # Exclude node_modules from host to use container's node_modules
+    #   - /app/node_modules
+    #   - /app/.next
     environment:
       - NEXT_PUBLIC_API_URL=http://127.0.0.1:8081
-      - NODE_ENV=development
+      - NODE_ENV=production
     # Note: UI uses host network mode to communicate with system_manager
     # If system_manager is on a Docker network, change network_mode and
     # set NEXT_PUBLIC_API_URL to http://system_manager:8081
