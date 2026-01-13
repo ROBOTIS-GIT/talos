@@ -30,6 +30,7 @@ export default function ContainerDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [showApplicationServices, setShowApplicationServices] = useState(false);
   const [showSystemServices, setShowSystemServices] = useState(false);
 
   // Separate services into regular and system services
@@ -181,23 +182,6 @@ export default function ContainerDetailPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {systemServicesCount > 0 && (
-            <label
-              className="flex items-center gap-2 text-sm cursor-pointer"
-              style={{ color: "var(--vscode-foreground)" }}
-            >
-              <input
-                type="checkbox"
-                checked={showSystemServices}
-                onChange={(e) => setShowSystemServices(e.target.checked)}
-                style={{
-                  accentColor: "var(--vscode-button-background)",
-                  cursor: "pointer"
-                }}
-              />
-              Show system services
-            </label>
-          )}
           <button
             onClick={loadStatuses}
             className="px-4 py-2 text-sm font-normal rounded"
@@ -237,46 +221,80 @@ export default function ContainerDetailPage() {
           {/* Application Services */}
           {regularServices.length > 0 && (
             <div>
-              <h2
-                className="text-lg font-medium mb-4"
-                style={{ color: "var(--vscode-foreground)" }}
+              <button
+                onClick={() => setShowApplicationServices(!showApplicationServices)}
+                className="flex items-center gap-2 text-lg font-medium mb-4 cursor-pointer hover:opacity-80 transition-opacity"
+                style={{ 
+                  color: "var(--vscode-foreground)",
+                  background: "none",
+                  border: "none",
+                  padding: 0
+                }}
               >
-                Application Services ({regularServices.length})
-              </h2>
-              <div className="grid grid-cols-1 gap-4">
-                {regularServices.map((service) => (
-                  <ServiceCard
-                    key={service.id}
-                    container={containerName}
-                    service={service}
-                    status={serviceStatuses[service.id]}
-                    onStatusUpdate={handleStatusUpdate}
-                  />
-                ))}
-              </div>
+                <span
+                  className="inline-block transition-transform"
+                  style={{
+                    transform: showApplicationServices ? "rotate(0deg)" : "rotate(-90deg)",
+                    transformOrigin: "center"
+                  }}
+                >
+                  ▼
+                </span>
+                <span>Application Services ({regularServices.length})</span>
+              </button>
+              {showApplicationServices && (
+                <div className="grid grid-cols-1 gap-4">
+                  {regularServices.map((service) => (
+                    <ServiceCard
+                      key={service.id}
+                      container={containerName}
+                      service={service}
+                      status={serviceStatuses[service.id]}
+                      onStatusUpdate={handleStatusUpdate}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
           {/* System Services */}
-          {systemServicesCount > 0 && showSystemServices && (
+          {systemServicesCount > 0 && (
             <div>
-              <h2
-                className="text-lg font-medium mb-4"
-                style={{ color: "var(--vscode-foreground)" }}
+              <button
+                onClick={() => setShowSystemServices(!showSystemServices)}
+                className="flex items-center gap-2 text-lg font-medium mb-4 cursor-pointer hover:opacity-80 transition-opacity"
+                style={{ 
+                  color: "var(--vscode-foreground)",
+                  background: "none",
+                  border: "none",
+                  padding: 0
+                }}
               >
-                System Services ({systemServicesCount})
-              </h2>
-              <div className="grid grid-cols-1 gap-4">
-                {systemServices.map((service) => (
-                  <ServiceCard
-                    key={service.id}
-                    container={containerName}
-                    service={service}
-                    status={serviceStatuses[service.id]}
-                    onStatusUpdate={handleStatusUpdate}
-                  />
-                ))}
-              </div>
+                <span
+                  className="inline-block transition-transform"
+                  style={{
+                    transform: showSystemServices ? "rotate(0deg)" : "rotate(-90deg)",
+                    transformOrigin: "center"
+                  }}
+                >
+                  ▼
+                </span>
+                <span>System Services ({systemServicesCount})</span>
+              </button>
+              {showSystemServices && (
+                <div className="grid grid-cols-1 gap-4">
+                  {systemServices.map((service) => (
+                    <ServiceCard
+                      key={service.id}
+                      container={containerName}
+                      service={service}
+                      status={serviceStatuses[service.id]}
+                      onStatusUpdate={handleStatusUpdate}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
