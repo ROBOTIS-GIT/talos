@@ -214,6 +214,42 @@ def control_service(name: str, action: str) -> None:
             )
             logger.info(f"Successfully executed action '{action}' on service '{name}'")
 
+        # When stopping a service, also stop its log service if it exists
+        if action == "down":
+            log_service_name = f"{name}-log"
+            log_service_path = S6_SERVICE_DIR / log_service_name
+            if log_service_path.exists():
+                try:
+                    # Check if log service is an s6-rc service
+                    is_log_s6rc = (log_service_path / "producer-for").exists() or (log_service_path / "consumer-for").exists()
+                    try:
+                        if log_service_path.is_symlink():
+                            target = log_service_path.readlink()
+                            if "s6-rc" in str(target):
+                                is_log_s6rc = True
+                    except Exception:
+                        pass
+
+                    if is_log_s6rc:
+                        subprocess.check_output(
+                            ["s6-rc", "-d", "change", log_service_name],
+                            stderr=subprocess.STDOUT,
+                            timeout=10,
+                        )
+                    else:
+                        subprocess.check_output(
+                            ["s6-svc", "-d", str(log_service_path)],
+                            stderr=subprocess.STDOUT,
+                            timeout=10,
+                        )
+                    logger.info(f"Successfully stopped log service '{log_service_name}' along with main service '{name}'")
+                except subprocess.CalledProcessError as e:
+                    # Log warning but don't fail - log service might already be stopped
+                    logger.warning(f"Failed to stop log service '{log_service_name}': {e}")
+                except Exception as e:
+                    # Log warning but don't fail
+                    logger.warning(f"Error stopping log service '{log_service_name}': {e}")
+
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to {action} service '{name}': {e}")
         raise
