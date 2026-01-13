@@ -30,7 +30,7 @@ export default function ContainerDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [showApplicationServices, setShowApplicationServices] = useState(false);
+  const [showApplicationServices, setShowApplicationServices] = useState(true);
   const [showSystemServices, setShowSystemServices] = useState(false);
 
   // Separate services into regular and system services
