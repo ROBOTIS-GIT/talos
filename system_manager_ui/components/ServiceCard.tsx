@@ -76,6 +76,7 @@ export default function ServiceCard({
         <ServiceControls
           container={container}
           service={service.id}
+          isUp={isUp}
           onActionComplete={onStatusUpdate}
         />
         <div className="flex items-center gap-2">

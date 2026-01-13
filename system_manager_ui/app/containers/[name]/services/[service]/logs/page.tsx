@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import LogViewer from "@/components/LogViewer";
-import { getServiceLogs } from "@/lib/api";
+import { getServiceLogs, clearServiceLogs } from "@/lib/api";
 
 export default function ServiceLogsPage() {
   const params = useParams();
@@ -49,6 +49,18 @@ export default function ServiceLogsPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const clearLogs = async () => {
+    try {
+      setError(null);
+      await clearServiceLogs(containerName, serviceName);
+      // Clear client-side logs and reload
+      setLogs("");
+      await loadLogs();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to clear logs");
+    }
   };
 
   if (loading) {
@@ -139,6 +151,18 @@ export default function ServiceLogsPage() {
               }}
             >
               Refresh
+            </button>
+            <button
+              onClick={clearLogs}
+              style={buttonStyle}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--vscode-button-hoverBackground)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--vscode-button-background)";
+              }}
+            >
+              Clear
             </button>
             <button
               onClick={downloadLogs}
