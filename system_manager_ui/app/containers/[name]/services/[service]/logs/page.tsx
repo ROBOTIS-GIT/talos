@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import LogViewer from "@/components/LogViewer";
-import { getServiceLogs, clearServiceLogs } from "@/lib/api";
+import { clearServiceLogs } from "@/lib/api";
+import { createLogsWebSocket } from "@/lib/websocket";
 
 export default function ServiceLogsPage() {
   const params = useParams();
@@ -13,28 +14,67 @@ export default function ServiceLogsPage() {
   const [logs, setLogs] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tail, setTail] = useState(100);
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    loadLogs();
-  }, [containerName, serviceName, tail]);
+    // Always connect to WebSocket for real-time logs
+    connectWebSocket();
 
-  useEffect(() => {
-    if (autoRefresh) {
-      const interval = setInterval(loadLogs, 3000);
-      return () => clearInterval(interval);
+    return () => {
+      // Cleanup: close WebSocket connection
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, [containerName, serviceName]);
+
+  const connectWebSocket = () => {
+    // Close existing connection if any
+    if (wsRef.current) {
+      wsRef.current.close();
     }
-  }, [autoRefresh, containerName, serviceName, tail]);
 
-  const loadLogs = async () => {
+    setLoading(true);
+    setError(null);
+    setIsConnected(false);
+
     try {
-      setError(null);
-      const response = await getServiceLogs(containerName, serviceName, tail);
-      setLogs(response.logs);
+      const ws = createLogsWebSocket(containerName, serviceName, {
+        onMessage: (data: string) => {
+          // Append new logs to existing logs
+          setLogs((prevLogs) => {
+            // If prevLogs is empty, this is the initial load
+            if (prevLogs === "") {
+              return data;
+            }
+            // Append new data
+            return prevLogs + data;
+          });
+          setLoading(false);
+          setIsConnected(true);
+        },
+        onError: (err: Error) => {
+          setError(err.message);
+          setLoading(false);
+          setIsConnected(false);
+        },
+        onOpen: () => {
+          setIsConnected(true);
+        },
+        onClose: () => {
+          setIsConnected(false);
+          // Auto-reconnect after 3 seconds
+          setTimeout(() => {
+            connectWebSocket();
+          }, 3000);
+        },
+      });
+
+      wsRef.current = ws;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load logs");
-    } finally {
+      setError(err instanceof Error ? err.message : "Failed to connect to WebSocket");
       setLoading(false);
     }
   };
@@ -55,23 +95,17 @@ export default function ServiceLogsPage() {
     try {
       setError(null);
       await clearServiceLogs(containerName, serviceName);
-      // Clear client-side logs and reload
+      // Clear client-side logs
       setLogs("");
-      await loadLogs();
+      // Reconnect WebSocket to get fresh logs
+      if (wsRef.current) {
+        wsRef.current.close();
+        connectWebSocket();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to clear logs");
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div style={{ color: "var(--vscode-descriptionForeground)" }}>
-          Loading logs...
-        </div>
-      </div>
-    );
-  }
 
   const buttonStyle = {
     padding: "4px 12px",
@@ -81,7 +115,7 @@ export default function ServiceLogsPage() {
     borderRadius: "2px",
     cursor: "pointer",
     backgroundColor: "var(--vscode-button-background)",
-              color: "var(--vscode-button-foreground)",
+    color: "var(--vscode-button-foreground)",
     transition: "background-color 0.2s",
   };
 
@@ -106,52 +140,14 @@ export default function ServiceLogsPage() {
               style={{ color: "var(--vscode-descriptionForeground)" }}
             >
               Container: {containerName}
+              {isConnected && (
+                <span style={{ marginLeft: "8px", color: "var(--vscode-descriptionForeground)" }}>
+                  • Live
+                </span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <label
-              className="flex items-center gap-2 text-sm cursor-pointer"
-              style={{ color: "var(--vscode-foreground)" }}
-            >
-              <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-                style={{
-                  accentColor: "var(--vscode-button-background)",
-                  cursor: "pointer"
-                }}
-              />
-              Auto-refresh
-            </label>
-            <select
-              value={tail}
-              onChange={(e) => setTail(Number(e.target.value))}
-              className="px-3 py-1.5 border rounded text-sm"
-              style={{
-                backgroundColor: "var(--vscode-input-background)",
-                borderColor: "var(--vscode-input-border)",
-                color: "var(--vscode-input-foreground)",
-                cursor: "pointer"
-              }}
-            >
-              <option value={50}>Last 50 lines</option>
-              <option value={100}>Last 100 lines</option>
-              <option value={200}>Last 200 lines</option>
-              <option value={500}>Last 500 lines</option>
-            </select>
-            <button
-              onClick={loadLogs}
-              style={buttonStyle}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--vscode-button-hoverBackground)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--vscode-button-background)";
-              }}
-            >
-              Refresh
-            </button>
             <button
               onClick={clearLogs}
               style={buttonStyle}
@@ -204,7 +200,7 @@ export default function ServiceLogsPage() {
               </p>
             </div>
             <button
-              onClick={loadLogs}
+              onClick={connectWebSocket}
               style={buttonStyle}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = "var(--vscode-button-hoverBackground)";
@@ -220,8 +216,8 @@ export default function ServiceLogsPage() {
       )}
 
       <div style={{ height: "calc(100vh - 200px)", minHeight: "400px" }}>
-        <LogViewer logs={logs} autoScroll={autoRefresh} className="h-full" />
-    </div>
+        <LogViewer logs={logs} autoScroll={true} className="h-full" />
+      </div>
     </>
   );
 }
