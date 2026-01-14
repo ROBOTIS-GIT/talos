@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 import docker
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -670,6 +670,125 @@ async def clear_service_logs(
         message=agent_response.get("message", "Logs cleared successfully"),
         log_path=agent_response.get("log_path"),
     )
+
+
+@app.websocket("/ws/containers/{container}/services/{service}/logs")
+async def websocket_service_logs(websocket: WebSocket, container: str, service: str):
+    """WebSocket endpoint for streaming service logs in real-time.
+    
+    Establishes a WebSocket connection and streams logs from the specified service.
+    Logs are fetched from the agent and sent to the client as they become available.
+    
+    Args:
+        websocket: WebSocket connection object.
+        container: Name of the container (e.g., "ai_worker").
+        service: Service ID (e.g., "ffw_bg2_follower_ai").
+    """
+    await websocket.accept()
+    logger.info(f"WebSocket connection established for {container}/{service} logs")
+    
+    try:
+        # Validate container exists
+        config = get_config()
+        if container not in config.containers:
+            await websocket.send_json({
+                "type": "error",
+                "data": f"Container '{container}' not found"
+            })
+            await websocket.close()
+            return
+        
+        client_pool = get_client_pool()
+        client = client_pool.get_client(container)
+        if client is None:
+            await websocket.send_json({
+                "type": "error",
+                "data": f"Agent client for container '{container}' not available"
+            })
+            await websocket.close()
+            return
+        
+        # Initial log fetch (last 100 lines)
+        last_logs = ""
+        try:
+            loop = asyncio.get_event_loop()
+            agent_response = await loop.run_in_executor(
+                None, client.get_service_logs, service, 100
+            )
+            last_logs = agent_response.get("logs", "")
+            
+            # Send initial logs
+            await websocket.send_json({
+                "type": "logs",
+                "data": last_logs
+            })
+        except Exception as e:
+            logger.error(f"Failed to fetch initial logs: {e}")
+            await websocket.send_json({
+                "type": "error",
+                "data": f"Failed to fetch initial logs: {str(e)}"
+            })
+        
+        # Poll for new logs every 0.5 seconds
+        loop = asyncio.get_event_loop()
+        while True:
+            try:
+                # Wait before next poll
+                await asyncio.sleep(0.5)
+                
+                # Fetch current logs
+                agent_response = await loop.run_in_executor(
+                    None, client.get_service_logs, service, 10000  # Fetch up to 10000 lines
+                )
+                current_logs = agent_response.get("logs", "")
+                
+                # Compare logs to find new content
+                if current_logs != last_logs:
+                    if len(current_logs) > len(last_logs) and current_logs.startswith(last_logs):
+                        # New content appended
+                        new_logs = current_logs[len(last_logs):]
+                        await websocket.send_json({
+                            "type": "logs",
+                            "data": new_logs
+                        })
+                    elif len(current_logs) < len(last_logs):
+                        # Logs were cleared, send full logs
+                        await websocket.send_json({
+                            "type": "logs",
+                            "data": current_logs
+                        })
+                    else:
+                        # Logs changed but not in expected way, send full logs
+                        await websocket.send_json({
+                            "type": "logs",
+                            "data": current_logs
+                        })
+                    last_logs = current_logs
+                    
+            except WebSocketDisconnect:
+                logger.info(f"WebSocket disconnected for {container}/{service}")
+                break
+            except Exception as e:
+                logger.error(f"Error streaming logs for {container}/{service}: {e}")
+                try:
+                    await websocket.send_json({
+                        "type": "error",
+                        "data": f"Error streaming logs: {str(e)}"
+                    })
+                except Exception:
+                    # WebSocket might be closed, break the loop
+                    break
+                # Continue polling despite errors (but wait a bit longer)
+                await asyncio.sleep(2)
+                
+    except WebSocketDisconnect:
+        logger.info(f"WebSocket disconnected for {container}/{service}")
+    except Exception as e:
+        logger.error(f"WebSocket error for {container}/{service}: {e}")
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 
 @app.get(
