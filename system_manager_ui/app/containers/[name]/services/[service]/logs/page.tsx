@@ -1,10 +1,17 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import type { MouseEvent } from "react";
 import { useParams } from "next/navigation";
 import LogViewer from "@/components/LogViewer";
 import { clearServiceLogs } from "@/lib/api";
 import { createLogsWebSocket } from "@/lib/websocket";
+
+// Constants
+const LOG_UPDATE_DEBOUNCE_MS = 200; // Increased to reduce flickering and batch more updates
+const RECONNECT_DELAY_MS = 3000;
+const WS_CLOSE_CODE_NORMAL = 1000;
+const WS_CLOSE_CODE_GOING_AWAY = 1001;
 
 export default function ServiceLogsPage() {
   const params = useParams();
@@ -16,70 +23,148 @@ export default function ServiceLogsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = useRef(true);
+  const shouldReconnectRef = useRef(true);
+  const pendingLogsRef = useRef<string>("");
+  const logUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isEmptyLogsRef = useRef(true); // Track if logs are empty to avoid state dependency
+
+  // Cleanup function
+  const cleanup = useCallback(() => {
+    isMountedRef.current = false;
+    shouldReconnectRef.current = false;
+    
+    if (wsRef.current) {
+      wsRef.current.close(WS_CLOSE_CODE_NORMAL, "Component unmounting");
+      wsRef.current = null;
+    }
+    
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    
+    if (logUpdateTimeoutRef.current) {
+      clearTimeout(logUpdateTimeoutRef.current);
+      logUpdateTimeoutRef.current = null;
+    }
+    
+    // Flush pending logs
+    if (pendingLogsRef.current) {
+      setLogs((prevLogs) => prevLogs + pendingLogsRef.current);
+      pendingLogsRef.current = "";
+    }
+  }, []);
 
   useEffect(() => {
-    // Always connect to WebSocket for real-time logs
+    isMountedRef.current = true;
+    shouldReconnectRef.current = true;
+    isEmptyLogsRef.current = true;
     connectWebSocket();
+    return cleanup;
+  }, [containerName, serviceName, cleanup]);
 
-    return () => {
-      // Cleanup: close WebSocket connection
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
-  }, [containerName, serviceName]);
+  const connectWebSocket = useCallback(() => {
+    if (!isMountedRef.current) return;
 
-  const connectWebSocket = () => {
-    // Close existing connection if any
+    // Close existing connection
     if (wsRef.current) {
-      wsRef.current.close();
+      wsRef.current.close(WS_CLOSE_CODE_NORMAL, "Reconnecting");
+      wsRef.current = null;
+    }
+
+    // Clear pending operations
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
     }
 
     setLoading(true);
     setError(null);
     setIsConnected(false);
+    shouldReconnectRef.current = true;
 
     try {
       const ws = createLogsWebSocket(containerName, serviceName, {
         onMessage: (data: string) => {
-          // Append new logs to existing logs
-          setLogs((prevLogs) => {
-            // If prevLogs is empty, this is the initial load
-            if (prevLogs === "") {
-              return data;
+          if (!isMountedRef.current) return;
+          
+          // Append to pending logs buffer
+          pendingLogsRef.current += data;
+          
+          // Update immediately for first message, batch subsequent updates
+          if (isEmptyLogsRef.current) {
+            setLogs(pendingLogsRef.current);
+            pendingLogsRef.current = "";
+            isEmptyLogsRef.current = false;
+            setLoading(false);
+            setIsConnected(true);
+          } else {
+            // Clear existing timeout to batch multiple rapid updates
+            if (logUpdateTimeoutRef.current) {
+              clearTimeout(logUpdateTimeoutRef.current);
             }
-            // Append new data
-            return prevLogs + data;
-          });
-          setLoading(false);
-          setIsConnected(true);
+            // Batch updates to reduce flickering
+            logUpdateTimeoutRef.current = setTimeout(() => {
+              if (!isMountedRef.current) return;
+              // Only update if there's pending data
+              if (pendingLogsRef.current) {
+                setLogs((prevLogs) => {
+                  const newLogs = prevLogs + pendingLogsRef.current;
+                  pendingLogsRef.current = "";
+                  return newLogs;
+                });
+              }
+            }, LOG_UPDATE_DEBOUNCE_MS);
+          }
         },
         onError: (err: Error) => {
+          if (!isMountedRef.current) return;
           setError(err.message);
           setLoading(false);
           setIsConnected(false);
+          
+          // Disable reconnection if service is stopped
+          if (err.message.includes("stopped") || err.message.includes("both stopped")) {
+            shouldReconnectRef.current = false;
+          }
         },
         onOpen: () => {
+          if (!isMountedRef.current) return;
           setIsConnected(true);
+          setError(null);
         },
-        onClose: () => {
+        onClose: (event?: CloseEvent) => {
+          if (!isMountedRef.current) return;
           setIsConnected(false);
-          // Auto-reconnect after 3 seconds
-          setTimeout(() => {
+          
+          const shouldReconnect = 
+            isMountedRef.current &&
+            wsRef.current === ws &&
+            shouldReconnectRef.current &&
+            event?.code !== WS_CLOSE_CODE_NORMAL &&
+            event?.code !== WS_CLOSE_CODE_GOING_AWAY;
+          
+          if (shouldReconnect) {
+            reconnectTimeoutRef.current = setTimeout(() => {
+              if (isMountedRef.current && shouldReconnectRef.current) {
             connectWebSocket();
-          }, 3000);
+              }
+            }, RECONNECT_DELAY_MS);
+          }
         },
       });
 
       wsRef.current = ws;
     } catch (err) {
+      if (!isMountedRef.current) return;
       setError(err instanceof Error ? err.message : "Failed to connect to WebSocket");
       setLoading(false);
     }
-  };
+  }, [containerName, serviceName]);
 
-  const downloadLogs = () => {
+  const downloadLogs = useCallback(() => {
     const blob = new Blob([logs], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -89,15 +174,15 @@ export default function ServiceLogsPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  };
+  }, [logs, containerName, serviceName]);
 
-  const clearLogs = async () => {
+  const clearLogs = useCallback(async () => {
     try {
       setError(null);
       await clearServiceLogs(containerName, serviceName);
-      // Clear client-side logs
       setLogs("");
-      // Reconnect WebSocket to get fresh logs
+      isEmptyLogsRef.current = true;
+      
       if (wsRef.current) {
         wsRef.current.close();
         connectWebSocket();
@@ -105,9 +190,15 @@ export default function ServiceLogsPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to clear logs");
     }
-  };
+  }, [containerName, serviceName, connectWebSocket]);
 
-  const buttonStyle = {
+  const handleRetry = useCallback(() => {
+    shouldReconnectRef.current = true;
+    connectWebSocket();
+  }, [connectWebSocket]);
+
+  // Memoize button style and handlers
+  const buttonStyle = useMemo(() => ({
     padding: "4px 12px",
     fontSize: "12px",
     fontWeight: "400",
@@ -117,7 +208,13 @@ export default function ServiceLogsPage() {
     backgroundColor: "var(--vscode-button-background)",
     color: "var(--vscode-button-foreground)",
     transition: "background-color 0.2s",
-  };
+  }), []);
+
+  const handleButtonHover = useCallback((e: MouseEvent<HTMLButtonElement>, isEnter: boolean) => {
+    e.currentTarget.style.backgroundColor = isEnter
+      ? "var(--vscode-button-hoverBackground)"
+      : "var(--vscode-button-background)";
+  }, []);
 
   return (
     <>
@@ -151,24 +248,16 @@ export default function ServiceLogsPage() {
             <button
               onClick={clearLogs}
               style={buttonStyle}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--vscode-button-hoverBackground)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--vscode-button-background)";
-              }}
+              onMouseEnter={(e) => handleButtonHover(e, true)}
+              onMouseLeave={(e) => handleButtonHover(e, false)}
             >
               Clear
             </button>
             <button
               onClick={downloadLogs}
               style={buttonStyle}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--vscode-button-hoverBackground)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--vscode-button-background)";
-              }}
+              onMouseEnter={(e) => handleButtonHover(e, true)}
+              onMouseLeave={(e) => handleButtonHover(e, false)}
             >
               Download
             </button>
@@ -200,14 +289,10 @@ export default function ServiceLogsPage() {
               </p>
             </div>
             <button
-              onClick={connectWebSocket}
+              onClick={handleRetry}
               style={buttonStyle}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--vscode-button-hoverBackground)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--vscode-button-background)";
-              }}
+              onMouseEnter={(e) => handleButtonHover(e, true)}
+              onMouseLeave={(e) => handleButtonHover(e, false)}
             >
               Retry
             </button>

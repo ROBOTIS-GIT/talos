@@ -1,6 +1,6 @@
 """Pydantic models for system_manager API and configuration."""
 
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -11,6 +11,25 @@ class ServiceInfo(BaseModel):
         ..., description="Service identifier (matches s6 service name)", examples=["ai_worker_bringup"]
     )
     label: str = Field(..., description="Human-readable service label", examples=["AI Worker Bringup"])
+
+
+class ROS2Config(BaseModel):
+    """ROS2 configuration for a container."""
+
+    domain_id: int = Field(
+        default=0, description="ROS2 domain ID", examples=[0, 30]
+    )
+    topics: dict[str, str] = Field(
+        default_factory=dict,
+        description="Dictionary mapping topic names to message types",
+        examples=[{"robot_description": "std_msgs/msg/String"}],
+    )
+    router_ip: Optional[str] = Field(
+        None, description="Optional Zenoh router IP address"
+    )
+    router_port: Optional[int] = Field(
+        None, description="Optional Zenoh router port"
+    )
 
 
 class ContainerConfig(BaseModel):
@@ -24,6 +43,9 @@ class ContainerConfig(BaseModel):
     services: list[ServiceInfo] = Field(
         default_factory=list,
         description="Optional: Service metadata for labels. Services are discovered from agent.",
+    )
+    ros2: Optional[ROS2Config] = Field(
+        None, description="Optional: ROS2 topic subscription configuration"
     )
 
 
@@ -210,4 +232,38 @@ class ServiceRunScriptUpdateRequest(BaseModel):
     """Request body for updating a service run script."""
 
     content: str = Field(..., description="New contents of the run script")
+
+
+# ROS2 Plugin Models
+
+
+class ROS2TopicDataResponse(BaseModel):
+    """Response for GET /containers/{container}/ros2/topics/{topic}."""
+
+    container: str = Field(..., description="Container name")
+    topic: str = Field(..., description="ROS2 topic name", examples=["/robot_description"])
+    msg_type: str = Field(..., description="Message type", examples=["std_msgs/msg/String"])
+    data: Optional[Any] = Field(
+        None, description="Latest message data if available"
+    )
+    available: bool = Field(..., description="Whether topic data is available")
+    domain_id: int = Field(..., description="ROS2 domain ID used")
+
+
+class ROS2TopicStatus(BaseModel):
+    """Status information for a ROS2 topic."""
+
+    topic: str = Field(..., description="Topic name")
+    msg_type: str = Field(..., description="Message type")
+    configured: bool = Field(..., description="Whether topic is configured")
+    available: bool = Field(..., description="Whether topic has received data")
+    subscribed: bool = Field(..., description="Whether subscription is active")
+
+
+class ROS2TopicsListResponse(BaseModel):
+    """Response for GET /containers/{container}/ros2/topics."""
+
+    container: str = Field(..., description="Container name")
+    domain_id: int = Field(..., description="ROS2 domain ID")
+    topics: list[ROS2TopicStatus] = Field(..., description="List of topic statuses")
 

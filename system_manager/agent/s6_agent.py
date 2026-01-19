@@ -4,6 +4,7 @@ import logging
 import re
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import JSONResponse
@@ -219,7 +220,9 @@ async def control_service_endpoint(
     summary="Get service logs",
     description="Retrieve logs for a service from s6-overlay log directory",
 )
-async def get_service_logs(name: str, tail: int = 100, strip_ansi: bool = False):
+async def get_service_logs(
+    name: str, tail: int = 100, strip_ansi: bool = False, cursor: Optional[int] = None
+):
     """Get logs for a service.
 
     Reads logs from /var/log/{service_name}/current (s6-overlay log directory).
@@ -229,10 +232,13 @@ async def get_service_logs(name: str, tail: int = 100, strip_ansi: bool = False)
     Args:
         name: Service name.
         tail: Number of log lines to return from the end. Defaults to 100.
+            Ignored if cursor is provided.
         strip_ansi: If True, remove ANSI escape codes (color/formatting) from the output.
+        cursor: Byte offset in the log file. If provided, returns logs from this offset
+            to the end of the file. This is more efficient for streaming logs.
 
     Returns:
-        Dictionary with service name, logs content, and tail count.
+        Dictionary with service name, logs content, tail count (or cursor), and new cursor.
 
     Raises:
         HTTPException: 404 if service not found or logs unavailable, 500 on other errors.
@@ -246,35 +252,74 @@ async def get_service_logs(name: str, tail: int = 100, strip_ansi: bool = False)
         return {
             "service": name,
             "logs": "",
-            "tail": tail,
+            "tail": tail if cursor is None else None,
+            "cursor": 0,
             "log_path": str(log_path),
         }
 
     try:
-        # Use tail command to get last N lines
-        # Read from /var/log/{service_name}/current (s6-log output)
-        result = subprocess.run(
-            ["tail", "-n", str(tail), str(log_path)],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
+        # Get current file size for cursor
+        current_size = log_path.stat().st_size
 
-        if result.returncode != 0:
-            logger.error(f"Failed to read logs for service '{name}': {result.stderr}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to read log file: {result.stderr}",
+        # If cursor is provided, read from that offset (more efficient for streaming)
+        if cursor is not None:
+            if cursor < 0:
+                cursor = 0
+            if cursor > current_size:
+                # Cursor is beyond file size (file was truncated or rotated)
+                cursor = current_size
+                logger.warning(
+                    f"Cursor {cursor} is beyond file size {current_size} for service '{name}', resetting to current size"
+                )
+
+            if cursor == current_size:
+                # No new logs since last read
+                return {
+                    "service": name,
+                    "logs": "",
+                    "cursor": current_size,
+                    "log_path": str(log_path),
+                }
+
+            # Read from cursor to end of file
+            with log_path.open("rb") as f:
+                f.seek(cursor)
+                logs_bytes = f.read()
+                logs = logs_bytes.decode("utf-8", errors="replace")
+
+            logs = strip_ansi_codes(logs) if strip_ansi else logs
+
+            return {
+                "service": name,
+                "logs": logs,
+                "cursor": current_size,
+                "log_path": str(log_path),
+            }
+        else:
+            # Fallback to tail command for backward compatibility
+            result = subprocess.run(
+                ["tail", "-n", str(tail), str(log_path)],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
 
-        logs = strip_ansi_codes(result.stdout) if strip_ansi else result.stdout
+            if result.returncode != 0:
+                logger.error(f"Failed to read logs for service '{name}': {result.stderr}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to read log file: {result.stderr}",
+                )
 
-        return {
-            "service": name,
-            "logs": logs,
-            "tail": tail,
-            "log_path": str(log_path),
-        }
+            logs = strip_ansi_codes(result.stdout) if strip_ansi else result.stdout
+
+            return {
+                "service": name,
+                "logs": logs,
+                "tail": tail,
+                "cursor": current_size,  # Also return cursor for future use
+                "log_path": str(log_path),
+            }
 
     except subprocess.TimeoutExpired:
         logger.error(f"Timeout reading logs for service '{name}'")

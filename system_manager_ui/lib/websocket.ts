@@ -2,9 +2,11 @@
  * WebSocket utilities for real-time log streaming
  */
 
+import { useState, useEffect } from "react";
+
 export type WebSocketMessage = {
-  type: "logs" | "error";
-  data: string;
+  type: "logs" | "error" | "data";
+  data: string | any;
 };
 
 export type WebSocketStatus = "connecting" | "connected" | "disconnected" | "error";
@@ -13,31 +15,106 @@ export interface UseWebSocketOptions {
   onMessage?: (data: string) => void;
   onError?: (error: Error) => void;
   onOpen?: () => void;
-  onClose?: () => void;
+  onClose?: (event?: CloseEvent) => void;
   reconnect?: boolean;
   reconnectInterval?: number;
 }
+
+// Constants
+const WS_CLOSE_CODE = {
+  NORMAL: 1000,
+  GOING_AWAY: 1001,
+  ABNORMAL: 1006,
+} as const;
+
+const DEFAULT_WS_PORT = 8081;
 
 /**
  * Get WebSocket URL base
  */
 const getWebSocketBaseUrl = (): string => {
-  // Check for environment variable
   const envUrl = process.env.NEXT_PUBLIC_API_URL;
   
   if (envUrl) {
-    // Convert HTTP URL to WebSocket URL
     return envUrl.replace(/^http/, "ws");
   }
   
-  // Use the hostname where the frontend is hosted
   if (typeof window !== "undefined") {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    return `${protocol}//${window.location.hostname}:8081`;
+    return `${protocol}//${window.location.hostname}:${DEFAULT_WS_PORT}`;
   }
   
-  // Fallback for server-side rendering
-  return "ws://localhost:8081";
+  return `ws://localhost:${DEFAULT_WS_PORT}`;
+};
+
+/**
+ * Handle WebSocket close event
+ */
+const handleWebSocketClose = (
+  event: CloseEvent,
+  wsUrl: string,
+  options: UseWebSocketOptions
+): void => {
+  if (event.code === WS_CLOSE_CODE.NORMAL || event.code === WS_CLOSE_CODE.GOING_AWAY) {
+    // Normal closure - don't trigger error
+    return;
+  }
+  
+  if (event.code === WS_CLOSE_CODE.ABNORMAL) {
+    // Abnormal closure - often false positive in React Strict Mode
+    // Don't trigger error callback
+    return;
+  }
+  
+  // Other error codes
+  const reason = event.reason ? `, reason: ${event.reason}` : "";
+  options.onError?.(new Error(`WebSocket closed unexpectedly: code ${event.code}${reason}`));
+};
+
+/**
+ * Setup common WebSocket event handlers
+ */
+const setupWebSocketHandlers = (
+  ws: WebSocket,
+  wsUrl: string,
+  options: UseWebSocketOptions
+): void => {
+  ws.onopen = () => {
+    options.onOpen?.();
+  };
+  
+  ws.onerror = () => {
+    // Error details are in onclose event
+    // This is just a placeholder
+  };
+  
+  ws.onclose = (event) => {
+    handleWebSocketClose(event, wsUrl, options);
+    options.onClose?.(event);
+  };
+};
+
+/**
+ * Parse WebSocket message
+ */
+const parseWebSocketMessage = (
+  event: MessageEvent,
+  options: UseWebSocketOptions
+): void => {
+  try {
+    const message: WebSocketMessage = JSON.parse(event.data);
+    
+    if (message.type === "logs") {
+      options.onMessage?.(message.data);
+    } else if (message.type === "error") {
+      const errorMsg = typeof message.data === "string" 
+        ? message.data 
+        : JSON.stringify(message.data);
+      options.onError?.(new Error(errorMsg));
+    }
+  } catch (error) {
+    options.onError?.(error instanceof Error ? error : new Error("Unknown error"));
+  }
 };
 
 /**
@@ -53,36 +130,281 @@ export function createLogsWebSocket(
   
   const ws = new WebSocket(wsUrl);
   
-  ws.onopen = () => {
-    console.log(`WebSocket connected: ${wsUrl}`);
+  ws.onmessage = (event) => parseWebSocketMessage(event, options);
+  setupWebSocketHandlers(ws, wsUrl, options);
+  
+  return ws;
+}
+
+/**
+ * Parse ROS2 topic WebSocket message
+ */
+const parseROS2TopicMessage = (
+  event: MessageEvent,
+  options: UseWebSocketOptions
+): void => {
+  try {
+    const message: WebSocketMessage = JSON.parse(event.data);
+    
+    if (message.type === "data") {
+      // message.data is the ROS2TopicDataResponse object
+      // Pass it directly as JSON string for onMessage callback
+      const dataStr = typeof message.data === "string" 
+        ? message.data 
+        : JSON.stringify(message.data);
+      options.onMessage?.(dataStr);
+    } else if (message.type === "error") {
+      const errorMsg = typeof message.data === "string" 
+        ? message.data 
+        : JSON.stringify(message.data);
+      options.onError?.(new Error(errorMsg));
+    }
+  } catch (error) {
+    options.onError?.(error instanceof Error ? error : new Error("Unknown error"));
+  }
+};
+
+/**
+ * Create WebSocket connection for ROS2 topic data
+ */
+export function createROS2TopicWebSocket(
+  container: string,
+  topic: string,
+  options: UseWebSocketOptions = {}
+): WebSocket {
+  const baseUrl = getWebSocketBaseUrl();
+  const wsUrl = `${baseUrl}/ws/containers/${container}/ros2/topics/${encodeURIComponent(topic)}`;
+  
+  const ws = new WebSocket(wsUrl);
+  
+  ws.onmessage = (event) => parseROS2TopicMessage(event, options);
+  setupWebSocketHandlers(ws, wsUrl, options);
+  
+  return ws;
+}
+
+/**
+ * React hook for ROS2 topic WebSocket
+ */
+export function useROS2TopicWebSocket(
+  container: string | null,
+  topic: string | null,
+  options: UseWebSocketOptions = {}
+) {
+  const [ws, setWs] = useState<WebSocket | null>(null);
+  const [status, setStatus] = useState<WebSocketStatus>("disconnected");
+  const [topicData, setTopicData] = useState<any>(null);
+
+  useEffect(() => {
+    if (!container || !topic) {
+      return;
+    }
+
+    let isMounted = true;
+    setStatus("connecting");
+    
+    const websocket = createROS2TopicWebSocket(container, topic, {
+      ...options,
+      onOpen: () => {
+        if (isMounted) {
+          setStatus("connected");
     options.onOpen?.();
-  };
+        }
+      },
+      onMessage: (data: string) => {
+        if (!isMounted) return;
+        try {
+          const parsed = JSON.parse(data);
+          // parsed is the ROS2TopicDataResponse object: {container, topic, msg_type, data, available, domain_id}
+          setTopicData(parsed);
+          options.onMessage?.(data);
+        } catch (e) {
+          // If not JSON, use as-is
+          options.onMessage?.(data);
+        }
+      },
+      onError: (error: Error) => {
+        if (isMounted) {
+          setStatus("error");
+          options.onError?.(error);
+        }
+      },
+      onClose: () => {
+        if (isMounted) {
+          setStatus("disconnected");
+          options.onClose?.();
+        }
+      },
+    });
+
+    setWs(websocket);
+
+    return () => {
+      isMounted = false;
+      if (websocket.readyState === WebSocket.OPEN || websocket.readyState === WebSocket.CONNECTING) {
+        websocket.close(1000, "Component unmounting");
+      }
+      setWs(null);
+      setStatus("disconnected");
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [container, topic]);
+
+  return { ws, status, topicData } as { ws: WebSocket | null; status: WebSocketStatus; topicData: any };
+}
+
+/**
+ * ROS2 topic data callback type
+ * Receives (topic, data_dict, available)
+ */
+export type ROS2TopicCallback = (
+  topic: string,
+  data: {
+    container: string;
+    topic: string;
+    msg_type: string;
+    data: any;
+    available: boolean;
+    domain_id: number;
+  },
+  available: boolean
+) => void;
+
+/**
+ * Create WebSocket connection for all ROS2 topics
+ */
+export function createROS2AllTopicsWebSocket(
+  container: string,
+  options: UseWebSocketOptions & {
+    onTopicMessage?: ROS2TopicCallback;
+  } = {}
+): WebSocket {
+  const baseUrl = getWebSocketBaseUrl();
+  const wsUrl = `${baseUrl}/ws/containers/${container}/ros2/topics`;
+  
+  const ws = new WebSocket(wsUrl);
   
   ws.onmessage = (event) => {
     try {
       const message: WebSocketMessage = JSON.parse(event.data);
       
-      if (message.type === "logs") {
-        options.onMessage?.(message.data);
+      if (message.type === "data") {
+        // message.data contains topic information
+        const topicData = message.data as {
+          container: string;
+          topic: string;
+          msg_type: string;
+          data: any;
+          available: boolean;
+          domain_id: number;
+        };
+        
+        // Call topic-specific callback if provided
+        if (options.onTopicMessage) {
+          options.onTopicMessage(topicData.topic, topicData, topicData.available);
+        }
+        
+        // Also call general onMessage callback
+        const dataStr = typeof message.data === "string" 
+          ? message.data 
+          : JSON.stringify(message.data);
+        options.onMessage?.(dataStr);
       } else if (message.type === "error") {
-        options.onError?.(new Error(message.data));
+        const errorMsg = typeof message.data === "string" 
+          ? message.data 
+          : JSON.stringify(message.data);
+        options.onError?.(new Error(errorMsg));
       }
     } catch (error) {
-      console.error("Failed to parse WebSocket message:", error);
       options.onError?.(error instanceof Error ? error : new Error("Unknown error"));
     }
   };
   
-  ws.onerror = (error) => {
-    console.error("WebSocket error:", error);
-    options.onError?.(new Error("WebSocket connection error"));
-  };
-  
-  ws.onclose = () => {
-    console.log(`WebSocket disconnected: ${wsUrl}`);
-    options.onClose?.();
-  };
+  setupWebSocketHandlers(ws, wsUrl, options);
   
   return ws;
+}
+
+/**
+ * React hook for all ROS2 topics WebSocket
+ * Streams all topics through a single WebSocket connection
+ */
+export function useROS2AllTopicsWebSocket(
+  container: string | null,
+  options: {
+    onTopicMessage?: ROS2TopicCallback;
+    onError?: (error: Error) => void;
+    onOpen?: () => void;
+    onClose?: () => void;
+  } = {}
+) {
+  const [ws, setWs] = useState<WebSocket | null>(null);
+  const [status, setStatus] = useState<WebSocketStatus>("disconnected");
+  const [topicsData, setTopicsData] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    if (!container) {
+      return;
+    }
+
+    let isMounted = true;
+    setStatus("connecting");
+    
+    const websocket = createROS2AllTopicsWebSocket(container, {
+      onOpen: () => {
+        if (isMounted) {
+          setStatus("connected");
+          options.onOpen?.();
+        }
+      },
+      onTopicMessage: (topic, data, available) => {
+        if (!isMounted) return;
+        
+        // Update topics data map
+        setTopicsData((prev) => ({
+          ...prev,
+          [topic]: data,
+        }));
+        
+        // Call user-provided callback
+        options.onTopicMessage?.(topic, data, available);
+      },
+      onError: (error: Error) => {
+        if (isMounted) {
+          setStatus("error");
+          options.onError?.(error);
+        }
+      },
+      onClose: () => {
+        if (isMounted) {
+          setStatus("disconnected");
+          options.onClose?.();
+        }
+      },
+    });
+
+    setWs(websocket);
+
+    return () => {
+      isMounted = false;
+      if (websocket.readyState === WebSocket.OPEN || websocket.readyState === WebSocket.CONNECTING) {
+        websocket.close(1000, "Component unmounting");
+      }
+      setWs(null);
+      setStatus("disconnected");
+      setTopicsData({});
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [container]);
+
+  return { 
+    ws, 
+    status, 
+    topicsData 
+  } as { 
+    ws: WebSocket | null; 
+    status: WebSocketStatus; 
+    topicsData: Record<string, any> 
+  };
 }
 
