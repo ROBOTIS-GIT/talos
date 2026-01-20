@@ -187,16 +187,6 @@ export default function FixedLogPanel({
           >
             {service} Logs
           </span>
-          {isConnected && (
-            <span
-              style={{
-                fontSize: "10px",
-                color: "var(--vscode-descriptionForeground)",
-              }}
-            >
-              • Live
-            </span>
-          )}
         </div>
         <button
           onClick={onClose}

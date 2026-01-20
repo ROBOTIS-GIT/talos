@@ -246,7 +246,7 @@ class ROS2TopicSubscriber:
                 available = False
                 received_at = None
                 seconds_since_last_message = None
-                
+
                 if cached is not None:
                     received_at = cached.get("received_at")
                     if received_at is not None and received_at > 0:
@@ -256,7 +256,7 @@ class ROS2TopicSubscriber:
                     else:
                         # Old cache entry without timestamp (backward compatibility)
                         available = True
-                
+
                 status[topic] = {
                     "configured": True,
                     "available": available,
@@ -325,7 +325,7 @@ class ROS2TopicSubscriber:
             return None
         if isinstance(obj, (str, int, float, bool)):
             return obj
-    
+
         # Handle numpy ndarray (common in ROS2 messages like joint_states, odom)
         # Check for ndarray by checking for tolist method and shape attribute
         if hasattr(obj, 'tolist') and hasattr(obj, 'shape'):
@@ -333,7 +333,7 @@ class ROS2TopicSubscriber:
                 return obj.tolist()  # Convert ndarray to list
             except Exception:
                 return str(obj)
-        
+
         if isinstance(obj, (list, tuple)):
             return [self._convert_nested_obj_to_dict(item) for item in obj]
         if hasattr(obj, '__dict__'):
@@ -411,17 +411,12 @@ class ROS2TopicSubscriber:
                     f"[{self.container_name}] Successfully subscribed to '{topic}'"
                 )
             except Exception as sub_error:
-                logger.error(
-                    f"[{self.container_name}] ROS2Subscriber creation failed for '{topic}': {sub_error}",
-                    exc_info=True
-                )
+                # Error is already logged by start() method, just raise
                 raise
 
         except Exception as e:
-            logger.error(
-                f"[{self.container_name}] Failed to create subscriber for '{topic}': {e}",
-                exc_info=True
-            )
+            # Error will be handled by start() method which calls this function
+            # Just raise it without logging again to avoid duplicate logs
             raise
 
     def _cleanup_subscribers(self) -> None:

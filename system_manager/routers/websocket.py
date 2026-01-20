@@ -13,6 +13,7 @@ from system_manager.dependencies import (
     get_client_pool_or_none,
     get_ros2_plugin,
 )
+from system_manager.models import ROS2TopicDataResponse
 
 logger = logging.getLogger(__name__)
 
@@ -171,16 +172,16 @@ async def _poll_and_send_single_topic_data(
 
         if data_hash != last_sent_data_hash or not available:
             # Data changed or became unavailable, send update
-            data_dict = {
-                "container": container,
-                "topic": topic,
-                "msg_type": plugin.topics[topic],
-                "data": data,
-                "available": available,
-                "domain_id": plugin.domain_id,
-            }
+            response = ROS2TopicDataResponse(
+                container=container,
+                topic=topic,
+                msg_type=plugin.topics[topic],
+                data=data,
+                available=available,
+                domain_id=plugin.domain_id,
+            )
 
-            success = await _send_websocket_data(websocket, data_dict)
+            success = await _send_websocket_data(websocket, response.model_dump())
             return success, current_time, data_hash
     elif not available:
         # Topic became unavailable or no data yet
@@ -188,29 +189,29 @@ async def _poll_and_send_single_topic_data(
         # or if we had data before (last_sent_data_hash is not None)
         if last_sent_data_hash is None:
             # First time checking - send initial unavailable status
-            stale_data_dict = {
-                "container": container,
-                "topic": topic,
-                "msg_type": plugin.topics[topic],
-                "data": None,
-                "available": False,
-                "domain_id": plugin.domain_id,
-            }
+            response = ROS2TopicDataResponse(
+                container=container,
+                topic=topic,
+                msg_type=plugin.topics[topic],
+                data=None,
+                available=False,
+                domain_id=plugin.domain_id,
+            )
 
-            success = await _send_websocket_data(websocket, stale_data_dict)
+            success = await _send_websocket_data(websocket, response.model_dump())
             return success, current_time, -1  # Use -1 as sentinel value to indicate unavailable status sent
         elif last_sent_data_hash != -1:
             # We had data before, now it's unavailable - send notification
-            stale_data_dict = {
-                "container": container,
-                "topic": topic,
-                "msg_type": plugin.topics[topic],
-                "data": None,
-                "available": False,
-                "domain_id": plugin.domain_id,
-            }
+            response = ROS2TopicDataResponse(
+                container=container,
+                topic=topic,
+                msg_type=plugin.topics[topic],
+                data=None,
+                available=False,
+                domain_id=plugin.domain_id,
+            )
 
-            success = await _send_websocket_data(websocket, stale_data_dict)
+            success = await _send_websocket_data(websocket, response.model_dump())
             return success, current_time, -1
         # If last_sent_data_hash is -1, we already sent unavailable status, don't send again
         return True, last_send_time, last_sent_data_hash
@@ -468,38 +469,41 @@ async def websocket_ros2_topic_data(websocket: WebSocket, container: str, topic:
             # Send initial data immediately if available (before entering polling loop)
             cached_data = plugin.get_topic_data(topic)
             available = plugin.is_topic_available(topic)
-            
+
             if cached_data:
                 data = cached_data.get("data")
                 data_hash = hash(str(data)) if data is not None else None
-                data_dict = {
-                    "container": container,
-                    "topic": topic,
-                    "msg_type": plugin.topics[topic],
-                    "data": data,
-                    "available": available,
-                    "domain_id": plugin.domain_id,
-                }
-                if await _send_websocket_data(websocket, data_dict):
+                response = ROS2TopicDataResponse(
+                    container=container,
+                    topic=topic,
+                    msg_type=plugin.topics[topic],
+                    data=data,
+                    available=available,
+                    domain_id=plugin.domain_id,
+                )
+                if await _send_websocket_data(websocket, response.model_dump()):
                     last_send_time = time.time()
                     last_sent_data_hash = data_hash
                     initial_send_done = True
             elif not available:
                 # Send unavailable status immediately
-                stale_data_dict = {
-                    "container": container,
-                    "topic": topic,
-                    "msg_type": plugin.topics[topic],
-                    "data": None,
-                    "available": False,
-                    "domain_id": plugin.domain_id,
-                }
-                if await _send_websocket_data(websocket, stale_data_dict):
+                response = ROS2TopicDataResponse(
+                    container=container,
+                    topic=topic,
+                    msg_type=plugin.topics[topic],
+                    data=None,
+                    available=False,
+                    domain_id=plugin.domain_id,
+                )
+                if await _send_websocket_data(websocket, response.model_dump()):
                     last_send_time = time.time()
                     last_sent_data_hash = -1
                     initial_send_done = True
 
             # Poll-based approach: periodically check for new data and send with throttling
+            # Note: For topics with TRANSIENT_LOCAL durability (like robot_description with depth=1),
+            # the ROS2 subscriber will receive the latest message immediately upon subscription,
+            # so high-frequency polling is not necessary.
             while True:
                 await asyncio.sleep(min(LOG_POLL_INTERVAL, min_interval))
                 

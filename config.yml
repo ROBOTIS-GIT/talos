@@ -19,9 +19,8 @@ containers:
     ros2:
       domain_id: 30  # ROS2 domain ID (can be overridden by ROS_DOMAIN_ID env var)
       topics:
-        joint_states: "sensor_msgs/msg/JointState"
-        dynamic_joint_states: "control_msgs/msg/DynamicJointState"
-        robot_description: "std_msgs/msg/String"
+        /joint_states: "sensor_msgs/msg/JointState"
+        /robot_description: "std_msgs/msg/String"
       # router_ip: "192.168.1.100"  # Optional: Zenoh router IP
       # router_port: 7447  # Optional: Zenoh router port
   physical_ai_server:
