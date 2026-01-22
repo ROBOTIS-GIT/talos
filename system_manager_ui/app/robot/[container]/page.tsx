@@ -371,10 +371,13 @@ export default function RobotContainerPage() {
   const leaderService = useServiceStatus(container, LEADER_SERVICE_NAME);
 
   // Load topics
-  const loadTopics = useCallback(async () => {
+  const loadTopics = useCallback(async (isRefresh = false) => {
     if (!container) return;
     try {
-      setLoading(true);
+      // 처음 로드할 때만(데이터가 없을 때만) 전체 로딩 화면을 보여줍니다.
+      if (!isRefresh) {
+        setLoading(true);
+      }
       setError(null);
       const response = await getROS2Topics(container);
       setTopics(response.topics);
@@ -390,7 +393,8 @@ export default function RobotContainerPage() {
     const action = robotService.status?.is_up ? "down" : "up";
     await robotService.handleControl(action);
     setTimeout(() => {
-      loadTopics();
+      // true를 전달하여 전체 화면 로딩(깜빡임) 방지
+      loadTopics(true);
     }, STATUS_RELOAD_DELAY);
   }, [robotService, loadTopics]);
 
@@ -470,7 +474,7 @@ export default function RobotContainerPage() {
               Back
             </button>
             <button
-              onClick={loadTopics}
+              onClick={() => loadTopics()}
               className="px-4 py-2 text-sm font-normal rounded"
               style={{
                 backgroundColor: "var(--vscode-button-background)",
@@ -496,7 +500,6 @@ export default function RobotContainerPage() {
           <Robot3DViewer
             container={container}
             topic="/robot_description"
-            serviceRunning={robotService.status?.is_up}
           />
         </div>
 

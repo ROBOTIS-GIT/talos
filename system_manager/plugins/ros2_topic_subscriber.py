@@ -11,11 +11,13 @@ import time
 from typing import Any, Optional
 
 from zenoh_ros2_sdk import ROS2Subscriber
+from zenoh_ros2_sdk.qos import QosProfile, QosDurability
 
 logger = logging.getLogger(__name__)
 
 # Constants
 STATUS_CHECK_INTERVAL = 10  # seconds - reduced frequency for status checks
+DYNAMIC_TOPIC_STALE_TIME = 3.0  # seconds - time after which dynamic topic cache is considered stale and cleared
 
 
 class ROS2TopicSubscriber:
@@ -40,6 +42,7 @@ class ROS2TopicSubscriber:
         self,
         container_name: str,
         topics: dict[str, str],
+        static_topics: Optional[dict[str, str]] = None,
         domain_id: int = 30,
         router_ip: Optional[str] = None,
         router_port: Optional[int] = None,
@@ -48,14 +51,17 @@ class ROS2TopicSubscriber:
 
         Args:
             container_name: Name of the container/robot
-            topics: Dictionary mapping topic names to message types
-                Example: {"robot_description": "std_msgs/msg/String"}
-            domain_id: ROS2 domain ID. Defaults to 0.
+            topics: Dictionary mapping dynamic topic names to message types
+                Example: {"/joint_states": "sensor_msgs/msg/JointState"}
+            static_topics: Optional dictionary mapping static topic names to message types
+                Example: {"/robot_description": "std_msgs/msg/String"}
+            domain_id: ROS2 domain ID. Defaults to 30.
             router_ip: Optional Zenoh router IP address.
             router_port: Optional Zenoh router port.
         """
         self.container_name = container_name
-        self.topics = topics
+        self.topics = topics  # Dynamic topics
+        self.static_topics = static_topics or {}  # Static topics (e.g., robot_description)
         self.domain_id = domain_id
         self.router_ip = router_ip
         self.router_port = router_port
@@ -68,7 +74,7 @@ class ROS2TopicSubscriber:
 
         logger.info(
             f"[{container_name}] Initializing ROS2 plugin: "
-            f"{len(topics)} topics, domain_id={domain_id}"
+            f"{len(topics)} dynamic topics, {len(self.static_topics)} static topics, domain_id={domain_id}"
         )
 
     # ============================================================================
@@ -76,7 +82,7 @@ class ROS2TopicSubscriber:
     # ============================================================================
 
     def start(self) -> None:
-        """Start subscribing to all configured topics.
+        """Start subscribing to all configured topics (dynamic + static).
 
         Raises:
             RuntimeError: If plugin fails to start or no subscribers are created.
@@ -93,22 +99,36 @@ class ROS2TopicSubscriber:
             )
 
             failed_topics = []
+            # Subscribe to dynamic topics
             for topic, msg_type in self.topics.items():
                 try:
                     self._create_subscriber(topic, msg_type)
                 except Exception as e:
                     logger.error(
-                        f"[{self.container_name}] Failed to subscribe to '{topic}': {e}"
+                        f"[{self.container_name}] Failed to subscribe to dynamic topic '{topic}': {e}"
+                    )
+                    failed_topics.append(topic)
+                    # Continue with other topics even if one fails
+
+            # Subscribe to static topics
+            for topic, msg_type in self.static_topics.items():
+                try:
+                    self._create_subscriber(topic, msg_type)
+                except Exception as e:
+                    logger.error(
+                        f"[{self.container_name}] Failed to subscribe to static topic '{topic}': {e}"
                     )
                     failed_topics.append(topic)
                     # Continue with other topics even if one fails
 
             if failed_topics:
                 logger.warning(
-                    f"[{self.container_name}] Failed to subscribe to {len(failed_topics)} topics: {failed_topics}"
+                    f"[{self.container_name}] Failed to subscribe to {len(failed_topics)} topic(s): {failed_topics}"
                 )
 
-            if not self.subscribers:
+            # Only require at least one subscriber if there are any topics configured
+            total_topics = len(self.topics) + len(self.static_topics)
+            if not self.subscribers and total_topics > 0:
                 raise RuntimeError(
                     f"Failed to create any subscribers for container '{self.container_name}'"
                 )
@@ -116,7 +136,8 @@ class ROS2TopicSubscriber:
             self.is_running = True
             logger.info(
                 f"[{self.container_name}] Plugin started: "
-                f"{len(self.subscribers)}/{len(self.topics)} topics active"
+                f"{len(self.subscribers)}/{total_topics} topics active "
+                f"({len(self.topics)} dynamic, {len(self.static_topics)} static)"
             )
 
             # Start periodic status check thread
@@ -175,17 +196,36 @@ class ROS2TopicSubscriber:
     def get_topic_data(self, topic: str) -> Optional[dict[str, Any]]:
         """Get the latest cached data for a specific topic.
 
+        For dynamic topics, checks if the data is stale and clears it if so.
+        Static topics are never considered stale.
+
         Args:
             topic: Topic name.
 
         Returns:
             Cached data dictionary with 'data' and 'received_at' keys,
-            or None if no message has been received yet.
+            or None if no message has been received yet or if data is stale.
         """
         with self.lock:
             cached = self.msg_cache.get(topic)
             if cached is None:
                 return None
+
+            # Check if topic is stale (only for dynamic topics)
+            is_dynamic_topic = topic in self.topics
+            if is_dynamic_topic:
+                received_at = cached.get("received_at")
+                if received_at is not None:
+                    current_time = time.time()
+                    age = current_time - received_at
+                    if age > DYNAMIC_TOPIC_STALE_TIME:
+                        # Data is stale, clear it
+                        del self.msg_cache[topic]
+                        logger.debug(
+                            f"[{self.container_name}] Cleared stale cache for dynamic topic '{topic}' "
+                            f"(age: {age:.1f}s > {DYNAMIC_TOPIC_STALE_TIME}s)"
+                        )
+                        return None
 
             # Convert raw_message to dict for JSON serialization
             raw_message = cached.get("raw_message")
@@ -199,34 +239,76 @@ class ROS2TopicSubscriber:
             return None
 
     def list_topics(self) -> list[str]:
-        """Get list of configured topics.
+        """Get list of configured topics (both dynamic and static).
 
         Returns:
             List of topic names that are configured for this plugin.
         """
-        return list(self.topics.keys())
+        all_topics = list(self.topics.keys()) + list(self.static_topics.keys())
+        return all_topics
 
     def is_topic_available(self, topic: str) -> bool:
         """Check if a topic is configured and has cached data.
+
+        For dynamic topics, also checks if the data is stale.
 
         Args:
             topic: Topic name.
 
         Returns:
-            True if topic is configured and has cached data, False otherwise.
+            True if topic is configured and has non-stale cached data, False otherwise.
         """
         with self.lock:
-            if topic not in self.topics or topic not in self.msg_cache:
+            # Check if topic is configured (dynamic or static)
+            if topic not in self.topics and topic not in self.static_topics:
+                return False
+
+            if topic not in self.msg_cache:
                 return False
 
             cached = self.msg_cache.get(topic)
             if cached is None:
                 return False
 
+            # Check if dynamic topic is stale
+            is_dynamic_topic = topic in self.topics
+            if is_dynamic_topic:
+                received_at = cached.get("received_at")
+                if received_at is not None:
+                    current_time = time.time()
+                    age = current_time - received_at
+                    if age > DYNAMIC_TOPIC_STALE_TIME:
+                        # Data is stale, clear it
+                        del self.msg_cache[topic]
+                        return False
+
             return True
 
+    def clear_topic_cache(self, topic: str) -> None:
+        """Clear cached data for a specific topic.
+
+        Args:
+            topic: Topic name to clear from cache.
+        """
+        with self.lock:
+            if topic in self.msg_cache:
+                del self.msg_cache[topic]
+                logger.info(
+                    f"[{self.container_name}] Cleared cache for topic '{topic}'"
+                )
+
+    def clear_all_cache(self) -> None:
+        """Clear all cached topic data."""
+        with self.lock:
+            cleared_count = len(self.msg_cache)
+            self.msg_cache.clear()
+            if cleared_count > 0:
+                logger.info(
+                    f"[{self.container_name}] Cleared cache for {cleared_count} topic(s)"
+                )
+
     def get_all_topics_status(self) -> dict[str, dict[str, Any]]:
-        """Get status for all configured topics.
+        """Get status for all configured topics (both dynamic and static).
 
         Returns:
             Dictionary mapping topic names to their status information.
@@ -241,7 +323,40 @@ class ROS2TopicSubscriber:
         current_time = time.time()
         with self.lock:
             status = {}
+            # Process dynamic topics
             for topic in self.topics.keys():
+                cached = self.msg_cache.get(topic)
+                available = False
+                received_at = None
+                seconds_since_last_message = None
+
+                if cached is not None:
+                    received_at = cached.get("received_at")
+                    if received_at is not None and received_at > 0:
+                        seconds_since_received = current_time - received_at
+                        # Check if data is stale
+                        if seconds_since_received <= DYNAMIC_TOPIC_STALE_TIME:
+                            available = True
+                            seconds_since_last_message = seconds_since_received
+                        else:
+                            # Data is stale, clear it
+                            del self.msg_cache[topic]
+                            available = False
+                    else:
+                        # Old cache entry without timestamp (backward compatibility)
+                        available = True
+
+                status[topic] = {
+                    "configured": True,
+                    "available": available,
+                    "msg_type": self.topics[topic],
+                    "subscribed": topic in self.subscribers,
+                    "received_at": received_at,
+                    "seconds_since_last_message": seconds_since_last_message,
+                }
+            
+            # Process static topics
+            for topic in self.static_topics.keys():
                 cached = self.msg_cache.get(topic)
                 available = False
                 received_at = None
@@ -260,7 +375,7 @@ class ROS2TopicSubscriber:
                 status[topic] = {
                     "configured": True,
                     "available": available,
-                    "msg_type": self.topics[topic],
+                    "msg_type": self.static_topics[topic],
                     "subscribed": topic in self.subscribers,
                     "received_at": received_at,
                     "seconds_since_last_message": seconds_since_last_message,
@@ -398,6 +513,13 @@ class ROS2TopicSubscriber:
                 subscriber_kwargs["router_port"] = self.router_port
                 logger.debug(f"[{self.container_name}] Using router port: {self.router_port}")
 
+            # Apply TRANSIENT_LOCAL QoS for static topics (typically robot_description)
+            if topic in self.static_topics:
+                subscriber_kwargs["qos"] = QosProfile(
+                    durability=QosDurability.TRANSIENT_LOCAL,
+                    history_depth=1,
+                )
+
             logger.info(
                 f"[{self.container_name}] Creating subscriber for '{topic}' "
                 f"(type: {msg_type}, domain_id: {self.domain_id})"
@@ -431,8 +553,9 @@ class ROS2TopicSubscriber:
                 )
         self.subscribers.clear()
 
+
     def _periodic_status_check(self) -> None:
-        """Periodically log subscription status and cache state."""
+        """Periodically log subscription status, cache state, and clear stale dynamic topics."""
         check_count = 0
         while self.is_running:
             time.sleep(STATUS_CHECK_INTERVAL)
@@ -440,19 +563,41 @@ class ROS2TopicSubscriber:
                 break
 
             check_count += 1
+            current_time = time.time()
+            
             with self.lock:
-                # Only log warnings for topics without data
+                # Clear stale dynamic topics
+                stale_topics = []
+                for topic_name in list(self.msg_cache.keys()):
+                    # Only check dynamic topics for staleness
+                    if topic_name in self.topics:
+                        cached = self.msg_cache.get(topic_name)
+                        if cached is not None:
+                            received_at = cached.get("received_at")
+                            if received_at is not None:
+                                age = current_time - received_at
+                                if age > DYNAMIC_TOPIC_STALE_TIME:
+                                    del self.msg_cache[topic_name]
+                                    stale_topics.append(topic_name)
+                                    logger.debug(
+                                        f"[{self.container_name}] Cleared stale cache for dynamic topic '{topic_name}' "
+                                        f"(age: {age:.1f}s > {DYNAMIC_TOPIC_STALE_TIME}s)"
+                                    )
+
+                # Only log warnings for dynamic topics without data (not stale, just missing)
                 for topic_name in self.topics.keys():
                     if topic_name not in self.msg_cache:
                         logger.warning(
-                            f"[{self.container_name}] Topic '{topic_name}' has no cached data "
+                            f"[{self.container_name}] Dynamic topic '{topic_name}' has no cached data "
                             f"(no messages received in {check_count * STATUS_CHECK_INTERVAL} seconds)"
                         )
 
                 # Debug-level summary (only if DEBUG logging is enabled)
                 if logger.isEnabledFor(logging.DEBUG):
+                    total_topics = len(self.topics) + len(self.static_topics)
                     logger.debug(
                         f"[{self.container_name}] Status check #{check_count}: "
                         f"subscribers={len(self.subscribers)}, "
-                        f"cached_topics={len(self.msg_cache)}/{len(self.topics)}"
+                        f"cached_topics={len(self.msg_cache)}/{total_topics}, "
+                        f"stale_cleared={len(stale_topics)}"
                     )

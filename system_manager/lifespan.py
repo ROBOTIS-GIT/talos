@@ -66,6 +66,7 @@ async def lifespan(app: FastAPI):
                     plugin = ROS2TopicSubscriber(
                         container_name=container_name,
                         topics=ros2_config.topics,
+                        static_topics=ros2_config.static_topics,
                         domain_id=domain_id,
                         router_ip=router_ip,
                         router_port=router_port,
@@ -93,11 +94,11 @@ async def lifespan(app: FastAPI):
     client_pool = get_client_pool()
     if client_pool:
         await client_pool.close_all()
-    
+
     docker_client = get_docker_client()
     if docker_client:
         docker_client.close()
-    
+
     # Stop all ROS2 plugins
     plugins = get_ros2_plugins()
     for container_name, plugin in plugins.items():
@@ -107,6 +108,6 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Error stopping ROS2 plugin for container '{container_name}': {e}")
     clear_ros2_plugins()
-    
+
     logger.info("System manager shut down")
 

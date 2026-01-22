@@ -27,17 +27,15 @@ export default function Robot3DViewer({
   const controlsRef = useRef<OrbitControls | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const [robotDescription, setRobotDescription] = useState<string | null>(null);
-  const hasReceivedDescriptionRef = useRef<boolean>(false);
 
-  // Use WebSocket to receive robot_description (it's published once at startup)
-  // Close WebSocket after receiving data once
-  const { topicData, ws } = useROS2TopicWebSocket(container, topic, {
+  // Use WebSocket to receive robot_description
+  // WebSocket remains open to receive updates when robot type changes
+  const { topicData } = useROS2TopicWebSocket(container, topic, {
     onError: (err) => console.error("[Robot3DViewer] WebSocket error:", err),
   });
 
-  // topicData 변경 시 robot_description 업데이트 및 WebSocket 닫기
+  // topicData 변경 시 robot_description 업데이트
   useEffect(() => {
-    if (hasReceivedDescriptionRef.current) return;
     if (!topicData || !topicData.available) return;
 
     try {
@@ -65,21 +63,20 @@ export default function Robot3DViewer({
           }
         }
       }
-      
+
       if (robotDescriptionStr && robotDescriptionStr.length > 0) {
-        setRobotDescription(robotDescriptionStr);
-        hasReceivedDescriptionRef.current = true;
-        
-        // Close WebSocket after receiving data (robot_description is published only once)
-        if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-          console.log("[Robot3DViewer] Received robot_description, closing WebSocket");
-          ws.close(1000, "Robot description received");
-        }
+        // Only update if the description has changed (avoid unnecessary re-renders)
+        setRobotDescription((prev) => {
+          if (prev === robotDescriptionStr) {
+            return prev; // No change, return previous value
+          }
+          return robotDescriptionStr;
+        });
       }
     } catch (e) {
       console.error("[Robot3DViewer] Error parsing topic data:", e);
     }
-  }, [topicData, ws]);
+  }, [topicData]);
 
   // ... (Three.js 초기화 부분 동일) ...
   useEffect(() => {

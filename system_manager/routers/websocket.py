@@ -130,6 +130,27 @@ async def _check_service_status(
 # ROS2 WebSocket Helper Functions
 # ============================================================================
 
+def _get_topic_msg_type(plugin: Any, topic: str) -> str:
+    """Get message type for a topic (check both topics and static_topics).
+    
+    Args:
+        plugin: ROS2TopicSubscriber plugin.
+        topic: Topic name.
+        
+    Returns:
+        Message type string.
+        
+    Raises:
+        KeyError: If topic is not found in either topics or static_topics.
+    """
+    if topic in plugin.topics:
+        return plugin.topics[topic]
+    elif topic in plugin.static_topics:
+        return plugin.static_topics[topic]
+    else:
+        raise KeyError(f"Topic '{topic}' not found in topics or static_topics")
+
+
 async def _poll_and_send_single_topic_data(
     websocket: WebSocket,
     container: str,
@@ -172,10 +193,11 @@ async def _poll_and_send_single_topic_data(
 
         if data_hash != last_sent_data_hash or not available:
             # Data changed or became unavailable, send update
+            msg_type = _get_topic_msg_type(plugin, topic)
             response = ROS2TopicDataResponse(
                 container=container,
                 topic=topic,
-                msg_type=plugin.topics[topic],
+                msg_type=msg_type,
                 data=data,
                 available=available,
                 domain_id=plugin.domain_id,
@@ -189,10 +211,11 @@ async def _poll_and_send_single_topic_data(
         # or if we had data before (last_sent_data_hash is not None)
         if last_sent_data_hash is None:
             # First time checking - send initial unavailable status
+            msg_type = _get_topic_msg_type(plugin, topic)
             response = ROS2TopicDataResponse(
                 container=container,
                 topic=topic,
-                msg_type=plugin.topics[topic],
+                msg_type=msg_type,
                 data=None,
                 available=False,
                 domain_id=plugin.domain_id,
@@ -202,10 +225,11 @@ async def _poll_and_send_single_topic_data(
             return success, current_time, -1  # Use -1 as sentinel value to indicate unavailable status sent
         elif last_sent_data_hash != -1:
             # We had data before, now it's unavailable - send notification
+            msg_type = _get_topic_msg_type(plugin, topic)
             response = ROS2TopicDataResponse(
                 container=container,
                 topic=topic,
-                msg_type=plugin.topics[topic],
+                msg_type=msg_type,
                 data=None,
                 available=False,
                 domain_id=plugin.domain_id,
@@ -473,10 +497,11 @@ async def websocket_ros2_topic_data(websocket: WebSocket, container: str, topic:
             if cached_data:
                 data = cached_data.get("data")
                 data_hash = hash(str(data)) if data is not None else None
+                msg_type = _get_topic_msg_type(plugin, topic)
                 response = ROS2TopicDataResponse(
                     container=container,
                     topic=topic,
-                    msg_type=plugin.topics[topic],
+                    msg_type=msg_type,
                     data=data,
                     available=available,
                     domain_id=plugin.domain_id,
@@ -487,10 +512,11 @@ async def websocket_ros2_topic_data(websocket: WebSocket, container: str, topic:
                     initial_send_done = True
             elif not available:
                 # Send unavailable status immediately
+                msg_type = _get_topic_msg_type(plugin, topic)
                 response = ROS2TopicDataResponse(
                     container=container,
                     topic=topic,
-                    msg_type=plugin.topics[topic],
+                    msg_type=msg_type,
                     data=None,
                     available=False,
                     domain_id=plugin.domain_id,

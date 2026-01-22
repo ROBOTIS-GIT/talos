@@ -21,8 +21,13 @@ class ROS2Config(BaseModel):
     )
     topics: dict[str, str] = Field(
         default_factory=dict,
-        description="Dictionary mapping topic names to message types",
-        examples=[{"robot_description": "std_msgs/msg/String"}],
+        description="Dictionary mapping topic names to message types (dynamic topics)",
+        examples=[{"/joint_states": "sensor_msgs/msg/JointState"}],
+    )
+    static_topics: dict[str, str] = Field(
+        default_factory=dict,
+        description="Dictionary mapping static topic names to message types (e.g., robot_description)",
+        examples=[{"/robot_description": "std_msgs/msg/String"}],
     )
     router_ip: Optional[str] = Field(
         None, description="Optional Zenoh router IP address"

@@ -19,7 +19,13 @@ containers:
     ros2:
       domain_id: 30  # ROS2 domain ID (can be overridden by ROS_DOMAIN_ID env var)
       topics:
+        # /tf: "tf2_msgs/msg/TFMessage"
         /joint_states: "sensor_msgs/msg/JointState"
+        # /diagnostics: "diagnostic_msgs/msg/DiagnosticArray"
+        # /ai_worker/battery/left/state: "sensor_msgs/msg/BatteryState"
+        # /ai_worker/battery/right/state: "sensor_msgs/msg/BatteryState"
+      static_topics:
+        # /tf_static: "tf2_msgs/msg/TFMessage"
         /robot_description: "std_msgs/msg/String"
       # router_ip: "192.168.1.100"  # Optional: Zenoh router IP
       # router_port: 7447  # Optional: Zenoh router port
