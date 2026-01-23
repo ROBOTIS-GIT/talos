@@ -566,6 +566,7 @@ export default function RobotContainerPage() {
                 logButton={{
                   onClick: () => {
                     setShowLogs(!showLogs);
+                    setShowLeaderLogs(false); // Close leader logs when opening robot logs
                     setSelectedTopic(null);
                   },
                   isActive: showLogs,
@@ -589,6 +590,7 @@ export default function RobotContainerPage() {
                 logButton={{
                   onClick: () => {
                     setShowLeaderLogs(!showLeaderLogs);
+                    setShowLogs(false); // Close robot logs when opening leader logs
                     setSelectedTopic(null);
                   },
                   isActive: showLeaderLogs,
