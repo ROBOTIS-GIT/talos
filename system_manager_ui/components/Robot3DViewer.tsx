@@ -19,7 +19,6 @@ export default function Robot3DViewer({
   topic,
   className = "",
 }: Robot3DViewerProps) {
-  // ... (기본 Refs 설정은 동일) ...
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -28,31 +27,24 @@ export default function Robot3DViewer({
   const animationFrameRef = useRef<number | null>(null);
   const [robotDescription, setRobotDescription] = useState<string | null>(null);
 
-  // Use WebSocket to receive robot_description
-  // WebSocket remains open to receive updates when robot type changes
   const { topicData } = useROS2TopicWebSocket(container, topic, {
     onError: (err) => console.error("[Robot3DViewer] WebSocket error:", err),
   });
 
-  // topicData 변경 시 robot_description 업데이트
   useEffect(() => {
     if (!topicData || !topicData.available) return;
 
     try {
       const data = topicData.data;
-      // std_msgs/msg/String has a 'data' field containing the string
-      // After conversion, it becomes {data: "actual string"}
       let robotDescriptionStr: string | null = null;
 
       if (data) {
         if (typeof data === "string") {
           robotDescriptionStr = data;
         } else if (typeof data === "object" && data !== null) {
-          // Check if it's a dict with 'data' field (std_msgs/msg/String structure)
           if (data.data && typeof data.data === "string") {
             robotDescriptionStr = data.data;
           } else {
-            // Try to find string value in the object
             const values = Object.values(data);
             for (const value of values) {
               if (typeof value === "string" && value.length > 100) {
@@ -65,10 +57,9 @@ export default function Robot3DViewer({
       }
 
       if (robotDescriptionStr && robotDescriptionStr.length > 0) {
-        // Only update if the description has changed (avoid unnecessary re-renders)
         setRobotDescription((prev) => {
           if (prev === robotDescriptionStr) {
-            return prev; // No change, return previous value
+            return prev;
           }
           return robotDescriptionStr;
         });
@@ -78,7 +69,6 @@ export default function Robot3DViewer({
     }
   }, [topicData]);
 
-  // ... (Three.js 초기화 부분 동일) ...
   useEffect(() => {
     if (containerRef.current && !rendererRef.current) {
         const width = 500; const height = 400;
@@ -101,7 +91,6 @@ export default function Robot3DViewer({
          dirLight.castShadow = true;
          scene.add(dirLight);
 
-         // 바닥(지면) 추가
          const groundSize = 20;
          const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
          const groundMaterial = new THREE.MeshStandardMaterial({ 
@@ -110,21 +99,18 @@ export default function Robot3DViewer({
            metalness: 0.2
          });
          const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-         ground.rotation.x = -Math.PI / 2; // 평면을 수평으로
+         ground.rotation.x = -Math.PI / 2;
          ground.position.y = 0;
          ground.receiveShadow = true;
          scene.add(ground);
 
-         // 그리드 헬퍼 추가 (바닥 위에 격자 표시)
          const gridHelper = new THREE.GridHelper(groundSize, 20, 0x888888, 0x444444);
-         gridHelper.position.y = 0.01; // 바닥보다 약간 위에
+         gridHelper.position.y = 0.01;
          scene.add(gridHelper);
 
-         // 좌표축 헬퍼 추가
          const axesHelper = new THREE.AxesHelper(2);
          scene.add(axesHelper);
 
-         // 그림자 활성화
          renderer.shadowMap.enabled = true;
          renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -140,11 +126,9 @@ export default function Robot3DViewer({
     }
 
     return () => {
-        // ... (Cleanup 코드 동일) ...
     };
   }, []);
 
-  // URDF 로딩 및 카메라 조정
   useEffect(() => {
     if (!robotDescription || !sceneRef.current || !cameraRef.current || !rendererRef.current) {
       console.log("[Robot3DViewer] URDF effect skipped:", {
@@ -158,7 +142,6 @@ export default function Robot3DViewer({
 
     console.log("[Robot3DViewer] Starting URDF load, length:", robotDescription.length);
 
-    // 기존 모델 삭제 및 정리
     const toRemove: THREE.Object3D[] = [];
     sceneRef.current.traverse((c) => {
       if (c.userData.isUrdfRobot) {
@@ -167,7 +150,6 @@ export default function Robot3DViewer({
     });
     toRemove.forEach((c) => {
       sceneRef.current?.remove(c);
-      // 메시 리소스 정리
       c.traverse((child) => {
         if (child instanceof THREE.Mesh) {
           child.geometry.dispose();
@@ -182,7 +164,6 @@ export default function Robot3DViewer({
     console.log("[Robot3DViewer] Removed", toRemove.length, "previous robot(s)");
 
     try {
-      // 1. LoadingManager 생성 (메시 로딩 완료 감지)
       const manager = new THREE.LoadingManager();
       
       let loadedCount = 0;
@@ -191,7 +172,6 @@ export default function Robot3DViewer({
       manager.onLoad = () => {
         console.log("[Robot3DViewer] All meshes loaded! Adjusting camera...");
         
-        // 로봇을 찾음
         const robot = sceneRef.current?.children.find((c) => c.userData.isUrdfRobot);
         
         if (robot && cameraRef.current && controlsRef.current && rendererRef.current) {
@@ -208,7 +188,6 @@ export default function Robot3DViewer({
               distance,
             });
             
-            // 카메라 위치 재조정
             cameraRef.current.position.set(
               center.x + distance * 0.7,
               center.y + distance * 0.7,
@@ -217,11 +196,9 @@ export default function Robot3DViewer({
             cameraRef.current.lookAt(center);
             cameraRef.current.updateProjectionMatrix();
             
-            // 컨트롤 타겟 변경
             controlsRef.current.target.copy(center);
             controlsRef.current.update();
             
-            // 렌더링
             if (sceneRef.current) {
               rendererRef.current.render(sceneRef.current, cameraRef.current);
             }
@@ -239,10 +216,8 @@ export default function Robot3DViewer({
         console.error(`[Robot3DViewer] Failed to load asset: ${url}`);
       };
 
-      // 2. URDFLoader 생성
       const loader = new URDFLoader(manager);
 
-      // 3. 패키지 경로 매핑 설정
       loader.packages = {
         'ffw_description': '/assets/ffw_description',
       };
@@ -250,7 +225,6 @@ export default function Robot3DViewer({
       console.log("[Robot3DViewer] Package mapping:", loader.packages);
       console.log("[Robot3DViewer] Testing mesh path:", '/assets/ffw_description/meshes/ffw_sg2_rev1_follower/base_mobile_assy.stl');
 
-      // 4. URDF 파싱
       const robot = loader.parse(robotDescription);
       robot.userData.isUrdfRobot = true;
       
@@ -259,7 +233,6 @@ export default function Robot3DViewer({
       console.log("[Robot3DViewer] Robot position:", robot.position);
       console.log("[Robot3DViewer] Robot rotation:", robot.rotation);
       
-      // 회전 보정 (ROS Z-up -> Three.js Y-up)
       robot.rotation.x = -Math.PI / 2;
       
       if (sceneRef.current) {
@@ -277,7 +250,6 @@ export default function Robot3DViewer({
   }, [robotDescription]);
 
   return (
-    // ... (JSX 동일) ...
     <div className={`relative border rounded overflow-hidden ${className}`} style={{width:"500px", height:"400px"}}>
         <div ref={containerRef} style={{width:"100%", height:"100%"}} />
     </div>

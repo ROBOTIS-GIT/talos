@@ -374,7 +374,6 @@ export default function RobotContainerPage() {
   const loadTopics = useCallback(async (isRefresh = false) => {
     if (!container) return;
     try {
-      // 처음 로드할 때만(데이터가 없을 때만) 전체 로딩 화면을 보여줍니다.
       if (!isRefresh) {
         setLoading(true);
       }
@@ -393,7 +392,6 @@ export default function RobotContainerPage() {
     const action = robotService.status?.is_up ? "down" : "up";
     await robotService.handleControl(action);
     setTimeout(() => {
-      // true를 전달하여 전체 화면 로딩(깜빡임) 방지
       loadTopics(true);
     }, STATUS_RELOAD_DELAY);
   }, [robotService, loadTopics]);
@@ -566,7 +564,7 @@ export default function RobotContainerPage() {
                 logButton={{
                   onClick: () => {
                     setShowLogs(!showLogs);
-                    setShowLeaderLogs(false); // Close leader logs when opening robot logs
+                    setShowLeaderLogs(false);
                     setSelectedTopic(null);
                   },
                   isActive: showLogs,
@@ -590,7 +588,7 @@ export default function RobotContainerPage() {
                 logButton={{
                   onClick: () => {
                     setShowLeaderLogs(!showLeaderLogs);
-                    setShowLogs(false); // Close robot logs when opening leader logs
+                    setShowLogs(false);
                     setSelectedTopic(null);
                   },
                   isActive: showLeaderLogs,

@@ -250,7 +250,7 @@ async def websocket_service_logs(websocket: WebSocket, container: str, service: 
     logger.info(f"WebSocket connection established for {container}/{service} logs")
 
     # Track if we've sent initial logs via fallback for this connection
-    # This prevents sending duplicate logs when fallback is used
+    # This prevents sending duplicate logs when fallback is used1
     fallback_logs_sent = False
 
     try:
@@ -288,7 +288,7 @@ async def websocket_service_logs(websocket: WebSocket, container: str, service: 
             initial_logs = agent_response.get("logs", "")
             # Get cursor from response - it should always be present
             cursor = agent_response.get("cursor")
-            
+
             # If cursor is None, log warning and try to get cursor from file size
             if cursor is None:
                 logger.warning(
@@ -314,6 +314,28 @@ async def websocket_service_logs(websocket: WebSocket, container: str, service: 
             if initial_logs:
                 if not await _send_websocket_logs(websocket, initial_logs):
                     return  # Connection broken
+            
+            # IMPORTANT: After sending initial logs, refresh cursor to current file size
+            # to prevent duplicate logs. The initial cursor was set when fetching tail logs,
+            # but new logs might have been added between fetching and sending.
+            # By refreshing the cursor after sending, we ensure the polling loop starts
+            # from the correct position without duplicates.
+            if cursor is not None:
+                try:
+                    # Read with current cursor to get updated cursor (will return empty logs if no new logs)
+                    refresh_response = await client.get_service_logs(service, 0, cursor)
+                    refreshed_cursor = refresh_response.get("cursor")
+                    if refreshed_cursor is not None:
+                        cursor = refreshed_cursor
+                        logger.debug(
+                            f"Refreshed cursor for {container}/{service} after initial logs: "
+                            f"{cursor}"
+                        )
+                except Exception as refresh_error:
+                    # If refresh fails, keep the original cursor
+                    logger.debug(
+                        f"Failed to refresh cursor for {container}/{service}: {refresh_error}"
+                    )
         except Exception as e:
             logger.error(
                 f"Failed to fetch initial logs for {container}/{service}: {e}",

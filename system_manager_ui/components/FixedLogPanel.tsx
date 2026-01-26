@@ -14,6 +14,7 @@ const LOG_UPDATE_DEBOUNCE_MS = 200;
 const RECONNECT_DELAY_MS = 3000;
 const WS_CLOSE_CODE_NORMAL = 1000;
 const WS_CLOSE_CODE_GOING_AWAY = 1001;
+const MAX_LOG_LINES = 1000; // Maximum number of log lines to keep in memory
 
 export default function FixedLogPanel({
   container,
@@ -31,6 +32,20 @@ export default function FixedLogPanel({
   const pendingLogsRef = useRef<string>("");
   const logUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isEmptyLogsRef = useRef(true);
+
+  // Limit log lines to prevent memory issues
+  const limitLogLines = useCallback((logText: string): string => {
+    if (!logText) return logText;
+    
+    const lines = logText.split('\n');
+    if (lines.length <= MAX_LOG_LINES) {
+      return logText;
+    }
+    
+    // Keep only the most recent MAX_LOG_LINES
+    const recentLines = lines.slice(-MAX_LOG_LINES);
+    return recentLines.join('\n');
+  }, []);
 
   // WebSocket connection
   const connectWebSocket = useCallback(() => {
@@ -58,7 +73,7 @@ export default function FixedLogPanel({
           pendingLogsRef.current += data;
 
           if (isEmptyLogsRef.current) {
-            setLogs(pendingLogsRef.current);
+            setLogs(limitLogLines(pendingLogsRef.current));
             pendingLogsRef.current = "";
             isEmptyLogsRef.current = false;
             setIsConnected(true);
@@ -72,7 +87,7 @@ export default function FixedLogPanel({
                 setLogs((prevLogs) => {
                   const newLogs = prevLogs + pendingLogsRef.current;
                   pendingLogsRef.current = "";
-                  return newLogs;
+                  return limitLogLines(newLogs);
                 });
               }
             }, LOG_UPDATE_DEBOUNCE_MS);
@@ -146,7 +161,7 @@ export default function FixedLogPanel({
       }
 
       if (pendingLogsRef.current) {
-        setLogs((prevLogs) => prevLogs + pendingLogsRef.current);
+        setLogs((prevLogs) => limitLogLines(prevLogs + pendingLogsRef.current));
         pendingLogsRef.current = "";
       }
     };
@@ -188,26 +203,51 @@ export default function FixedLogPanel({
             {service} Logs
           </span>
         </div>
-        <button
-          onClick={onClose}
-          style={{
-            background: "none",
-            border: "none",
-            color: "var(--vscode-foreground)",
-            cursor: "pointer",
-            fontSize: "16px",
-            padding: "0 4px",
-            lineHeight: "1",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "var(--vscode-toolbar-hoverBackground)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "transparent";
-          }}
-        >
-          ×
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button
+            onClick={() => {
+              setLogs("");
+              pendingLogsRef.current = "";
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--vscode-foreground)",
+              cursor: "pointer",
+              fontSize: "12px",
+              padding: "4px 8px",
+              borderRadius: "2px",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--vscode-toolbar-hoverBackground)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+            }}
+          >
+            Clear
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--vscode-foreground)",
+              cursor: "pointer",
+              fontSize: "16px",
+              padding: "0 4px",
+              lineHeight: "1",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--vscode-toolbar-hoverBackground)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+            }}
+          >
+            ×
+          </button>
+        </div>
       </div>
 
       {/* Content */}

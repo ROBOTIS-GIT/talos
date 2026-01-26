@@ -6,4 +6,4 @@ docker==7.1.0
 requests==2.32.5
 requests-unixsocket==0.4.1
 httpx==0.27.2
-zenoh-ros2-sdk==0.1.5
+zenoh-ros2-sdk @ git+https://github.com/robotis-git/zenoh_ros2_sdk.git@feature-bug-fix
