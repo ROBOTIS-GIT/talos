@@ -13,6 +13,7 @@ export default function VSCodeLayout({
   const pathname = usePathname();
 
   const navItems = [
+    { href: "/robot", label: "Robot", icon: "🤖" },
     { href: "/", label: "Containers", icon: "📦" },
     { href: "/docker", label: "Docker", icon: "🐳" },
   ];

@@ -116,3 +116,28 @@ export interface ErrorResponse {
   error: string;
   detail: string | null;
 }
+
+// ROS2 Plugin Types
+
+export interface ROS2TopicStatus {
+  topic: string;
+  msg_type: string;
+  configured: boolean;
+  available: boolean;
+  subscribed: boolean;
+}
+
+export interface ROS2TopicsListResponse {
+  container: string;
+  domain_id: number;
+  topics: ROS2TopicStatus[];
+}
+
+export interface ROS2TopicDataResponse {
+  container: string;
+  topic: string;
+  msg_type: string;
+  data: any;
+  available: boolean;
+  domain_id: number;
+}

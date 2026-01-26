@@ -15,6 +15,8 @@ import type {
   DockerContainerLogsResponse,
   ErrorResponse,
   ServiceRunScriptResponse,
+  ROS2TopicsListResponse,
+  ROS2TopicDataResponse,
 } from "@/types/api";
 
 // Get API base URL from environment variable, default to frontend host:8081
@@ -246,6 +248,35 @@ export async function getDockerContainerLogs(
       {
         params: { tail },
       }
+    );
+    return response.data;
+  } catch (error) {
+    handleError(error);
+  }
+}
+
+// ROS2 Topic Management
+
+export async function getROS2Topics(
+  container: string
+): Promise<ROS2TopicsListResponse> {
+  try {
+    const response = await apiClient.get<ROS2TopicsListResponse>(
+      `/containers/${container}/ros2/topics`
+    );
+    return response.data;
+  } catch (error) {
+    handleError(error);
+  }
+}
+
+export async function getROS2TopicData(
+  container: string,
+  topic: string
+): Promise<ROS2TopicDataResponse> {
+  try {
+    const response = await apiClient.get<ROS2TopicDataResponse>(
+      `/containers/${container}/ros2/topics/${encodeURIComponent(topic)}`
     );
     return response.data;
   } catch (error) {
