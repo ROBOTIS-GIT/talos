@@ -8,7 +8,7 @@ from typing import Any, Optional, Tuple
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from websockets.exceptions import ConnectionClosedOK, ConnectionClosedError
 
-from system_manager.dependencies import (
+from system_manager.state import (
     get_config_or_none,
     get_client_pool_or_none,
     get_ros2_plugin,

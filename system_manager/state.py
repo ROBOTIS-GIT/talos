@@ -1,4 +1,4 @@
-"""FastAPI dependencies and state management for system_manager."""
+"""Global state management and FastAPI dependencies for system_manager."""
 
 from typing import Optional
 from fastapi import HTTPException, status
@@ -153,10 +153,10 @@ def get_client_pool_or_none() -> Optional[AgentClientPool]:
 
 def get_ros2_plugin(container_name: str) -> Optional[ROS2TopicSubscriber]:
     """Get ROS2 topic subscriber for a container.
-    
+
     Args:
         container_name: Name of the container.
-        
+
     Returns:
         ROS2TopicSubscriber if available, None otherwise.
     """

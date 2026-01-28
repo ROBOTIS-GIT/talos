@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from system_manager.agent_client import AgentClientPool
 from system_manager.config import load_config
 from system_manager.docker_client import DockerClient
-from system_manager.dependencies import (
+from system_manager.state import (
     set_config,
     set_client_pool,
     set_docker_client,

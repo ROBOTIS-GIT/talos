@@ -4,7 +4,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from system_manager.dependencies import get_config, get_ros2_plugin
+from system_manager.state import get_config, get_ros2_plugin
 from system_manager.models import (
     ROS2TopicDataResponse,
     ROS2TopicsListResponse,

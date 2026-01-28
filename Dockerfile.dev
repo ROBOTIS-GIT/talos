@@ -11,7 +11,6 @@ RUN apt-get update && \
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install eclipse-zenoh>=0.10.0 rosbags>=0.11.0 GitPython>=3.1.18 tqdm>=4.64.0
 # Note: Source code will be mounted as volume in docker-compose
 # No need to COPY system_manager/ and config.yml here
 

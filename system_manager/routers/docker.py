@@ -5,7 +5,7 @@ import logging
 import docker
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from system_manager.dependencies import get_docker_client
+from system_manager.state import get_docker_client
 from system_manager.models import (
     DockerContainerActionRequest,
     DockerContainerActionResponse,

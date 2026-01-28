@@ -6,7 +6,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from system_manager.dependencies import get_config, get_agent_client
+from system_manager.state import get_config, get_agent_client
 from system_manager.models import (
     ServiceListResponse,
     ServiceInfo,

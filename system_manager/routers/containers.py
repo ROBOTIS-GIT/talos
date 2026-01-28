@@ -1,7 +1,7 @@
 """Container endpoints router."""
 
 from fastapi import APIRouter, Depends
-from system_manager.dependencies import get_config
+from system_manager.state import get_config
 from system_manager.models import ContainerListResponse, ContainerInfo
 
 router = APIRouter(prefix="/containers", tags=["containers"])
