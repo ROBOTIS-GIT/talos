@@ -1,5 +1,5 @@
-# System Manager Configuration
-# This file defines the containers that the system_manager can control.
+# Talos Configuration
+# This file defines the containers that talos can control.
 #
 # Services are discovered dynamically from each agent - no need to list them here.
 # The agent (running in each container) is the source of truth for available services.
