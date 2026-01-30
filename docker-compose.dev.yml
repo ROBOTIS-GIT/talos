@@ -1,4 +1,12 @@
 services:
+  zenoh:
+    container_name: zenohd
+    image: eclipse/zenoh:latest
+    restart: unless-stopped
+    network_mode: host
+    command: ["--rest-http-port=8001"]
+    # Zenoh protocol: 7447/tcp, REST API: 8001/tcp (8000은 다른 서비스 사용 중)
+
   talos:
     container_name: talos
     build:
