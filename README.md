@@ -1,21 +1,21 @@
-## System Manager
+## Talos
 
 Central control plane for ROS2-based robot containers that use s6-overlay agents, exposed via a FastAPI REST API.
 
 ### Overview
 
-The `system_manager` runs as a standalone container or local process and exposes a unified HTTP API for:
+Talos runs as a standalone container or local process and exposes a unified HTTP API for:
 
 - **Container/service management via s6-overlay agents**
 - **Docker container inspection and control**
 
-Each managed robot container (for example, `ai_worker`) runs an s6 agent that exposes an HTTP API over a Unix Domain Socket. The `system_manager` talks to these agents over UDS and provides a single REST surface for external tools and UIs.
+Each managed robot container (for example, `ai_worker`) runs an s6 agent that exposes an HTTP API over a Unix Domain Socket. Talos talks to these agents over UDS and provides a single REST surface for external tools and UIs.
 
 ### Architecture
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
-│  system_manager container                               │
+│  talos container                                        │
 │  ┌───────────────────────────────────────────────────┐  │
 │  │  FastAPI REST API (port 8081)                     │  │
 │  │  - /containers                                    │  │
@@ -48,16 +48,16 @@ Each managed robot container (for example, `ai_worker`) runs an s6 agent that ex
                 └──────────────────────┘
 ```
 
-## Running the System Manager
+## Running Talos
 
 ### Option 1: Run with Docker Compose (recommended)
 
-From `/home/dev8/Desktop/ai_worker/system_manager`:
+From the project root:
 
 1. **Ensure agent sockets exist**
    - Start the `ai_worker` stack so that `/var/run/agent/s6_agent.sock` is created and bind-mounted to `../docker/agent_sockets/ai_worker/s6_agent.sock`.
 
-2. **Start the system_manager container**
+2. **Start the talos container**
 
    ```bash
    docker compose up -d
@@ -65,12 +65,12 @@ From `/home/dev8/Desktop/ai_worker/system_manager`:
 
    This will:
 
-   - Build the `system_manager` image using `Dockerfile`
+   - Build the `talos` image using `Dockerfile`
    - Mount agent sockets from `../docker/agent_sockets/ai_worker` to `/agents/ai_worker`
    - Mount `config.yml` into the container as `/app/config.yml`
-   - Mount the host `system_manager` package directory into `/app/system_manager` for live code updates
+   - Mount the host `talos` package directory into `/app/talos` for live code updates
    - Mount `/var/run/docker.sock` for Docker API access
-   - Start the FastAPI app on port **8081** (via `uvicorn system_manager.api:app`)
+   - Start the FastAPI app on port **8081** (via `uvicorn talos.api:app`)
 
 3. **View logs**
 
@@ -89,7 +89,7 @@ From `/home/dev8/Desktop/ai_worker/system_manager`:
    ```
 
 3. **Configure containers in `config.yml` (or another file)**
-   - By default, `system_manager` reads the path from the `CONFIG_FILE` env var, or falls back to `config.yml` in the current directory.
+   - By default, talos reads the path from the `CONFIG_FILE` env var, or falls back to `config.yml` in the current directory.
 
 4. **Ensure agent sockets are reachable**
    - The `socket_path` in `config.yml` must point to the Unix socket exposed by each agent (see configuration section below).
@@ -97,12 +97,12 @@ From `/home/dev8/Desktop/ai_worker/system_manager`:
 5. **Run the API server**
 
    ```bash
-   uvicorn system_manager.api:app --host 0.0.0.0 --port 8081
+   uvicorn talos.api:app --host 0.0.0.0 --port 8081
    ```
 
 ## Configuration
 
-The `system_manager` reads a YAML configuration into the `SystemConfig` model (`system_manager.models.SystemConfig`). The default config file is `config.yml` in the working directory, overridable via the `CONFIG_FILE` environment variable.
+Talos reads a YAML configuration into the `SystemConfig` model (`talos.models.SystemConfig`). The default config file is `config.yml` in the working directory, overridable via the `CONFIG_FILE` environment variable.
 
 ### Example `config.yml`
 
@@ -118,7 +118,7 @@ containers:
 ```
 
 - **`containers`**: map of container name → config.
-- **`socket_path`**: path inside the `system_manager` process/container to the agent’s Unix Domain Socket (UDS).
+- **`socket_path`**: path inside the talos process/container to the agent’s Unix Domain Socket (UDS).
 - **`services`**: optional list of metadata objects used only for **labels**:
   - `id`: the s6 service name (must match the agent’s notion of the service ID)
   - `label`: human-friendly display name
@@ -127,7 +127,7 @@ Actual service discovery comes **from the agent**, not from this list. Missing s
 
 ## API Surface
 
-The FastAPI app is defined in `system_manager/api.py` and exposes endpoints grouped into three main areas: **root**, **containers/services**, and **docker**.
+The FastAPI app is defined in `talos/api.py` and exposes endpoints grouped into three main areas: **root**, **containers/services**, and **docker**.
 
 ### Root
 
@@ -187,12 +187,12 @@ You can use these for:
 
 ## Docker Integration Details
 
-- `docker-compose.yml` (in this directory) defines the `system_manager` service:
+- `docker-compose.yml` (in this directory) defines the `talos` service:
   - `network_mode: host` to simplify connection to other host services.
   - Mounts:
     - `../docker/agent_sockets/ai_worker` → `/agents/ai_worker` (UDS for s6 agent)
     - `./config.yml` → `/app/config.yml`
-    - `./system_manager` → `/app/system_manager` (code)
+    - `./talos` → `/app/talos` (code)
     - `/var/run/docker.sock` → `/var/run/docker.sock`
   - Env:
     - `CONFIG_FILE=/app/config.yml`
@@ -203,4 +203,4 @@ If the Docker socket is missing or inaccessible, the app still starts; Docker en
 
 - **Dependencies** are pinned in `requirements.txt` and match the versions from the current container image:
   - `fastapi`, `uvicorn[standard]`, `httpx`, `pydantic`, `pyyaml`, `docker`, `requests`, `requests-unixsocket`.
-- When running via Docker, changes in the local `system_manager` package are reflected in the container (due to the bind mount) without rebuilding the image, which is useful for rapid development.
+- When running via Docker, changes in the local `talos` package are reflected in the container (due to the bind mount) without rebuilding the image, which is useful for rapid development.

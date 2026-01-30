@@ -12,13 +12,13 @@ RUN apt-get update && \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy system_manager package
-COPY system_manager/ ./system_manager/
+# Copy talos package
+COPY talos/ ./talos/
 COPY config.yml ./config.yml
 
 # Expose API port
 EXPOSE 8081
 
-# Run the system_manager API
-CMD ["uvicorn", "system_manager.api:app", "--host", "0.0.0.0", "--port", "8081"]
+# Run the talos API
+CMD ["uvicorn", "talos.api:app", "--host", "0.0.0.0", "--port", "8081"]
 

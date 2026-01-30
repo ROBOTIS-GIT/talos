@@ -1,40 +1,40 @@
 services:
-  system_manager:
-    container_name: system_manager
+  talos:
+    container_name: talos
     build:
       context: .
       dockerfile: Dockerfile
     restart: always
     network_mode: host
     volumes:
-      # Mount agent sockets directory (read-only for system_manager)
+      # Mount agent sockets directory (read-only for talos)
       - /var/run/robotis/agent_sockets:/agents
       # Mount config file
       - ./config.yml:/app/config.yml
       # Mount Docker socket for Docker API access
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./system_manager:/app/system_manager
+      - ./talos:/app/talos
     environment:
       - CONFIG_FILE=/app/config.yml
     # Note: This service can run independently, but requires agent sockets
     # to be created by the ai_worker container first
 
   ui:
-    container_name: system_manager_ui
+    container_name: talos_ui
     build:
-      context: ./system_manager_ui
+      context: ./talos_ui
       dockerfile: Dockerfile
     restart: always
     network_mode: host
     # volumes:
     #   # Mount source code for hot-reload in development
-    #   - ./system_manager_ui:/app
+    #   - ./talos_ui:/app
     #   # Exclude node_modules from host to use container's node_modules
     #   - /app/node_modules
     #   - /app/.next
     environment:
       - NEXT_PUBLIC_API_URL=http://127.0.0.1:8081
       - NODE_ENV=production
-    # Note: UI uses host network mode to communicate with system_manager
-    # If system_manager is on a Docker network, change network_mode and
-    # set NEXT_PUBLIC_API_URL to http://system_manager:8081
+    # Note: UI uses host network mode to communicate with talos
+    # If talos is on a Docker network, change network_mode and
+    # set NEXT_PUBLIC_API_URL to http://talos:8081
