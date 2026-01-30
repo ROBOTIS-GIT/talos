@@ -1,11 +1,12 @@
 services:
-  zenoh:
-    container_name: zenoh-daemon
-    image: eclipse/zenoh:latest
+  rmw_zenoh:
+    container_name: zenoh_daemon
+    build:
+      context: .
+      dockerfile: Dockerfile.zenoh_daemon
     restart: always
     network_mode: host
-    command: ["--rest-http-port=8001"]
-    # Zenoh protocol: 7447/tcp, REST API: 8001/tcp (8000은 다른 서비스 사용 중)
+    init: true
 
   talos:
     container_name: talos
