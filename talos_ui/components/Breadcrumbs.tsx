@@ -19,43 +19,63 @@ export default function Breadcrumbs() {
       return crumbs;
     }
 
+    if (pathname === "/robot") {
+      crumbs.push({ label: "Robot", href: null });
+      return crumbs;
+    }
+
     // Parse path segments
     const segments = pathname.split("/").filter(Boolean);
-    
+
+    // /robot, /robot/[container], /robot/[container]/topics/...
+    if (segments[0] === "robot") {
+      crumbs.push({ label: "Robot", href: "/robot" });
+      if (segments.length >= 2) {
+        const containerName = segments[1];
+        if (segments[2] === "topics" && segments.length >= 4) {
+          crumbs.push({ label: containerName, href: `/robot/${containerName}` });
+          crumbs.push({ label: segments[3], href: null });
+        } else {
+          crumbs.push({ label: containerName, href: null });
+        }
+      }
+      return crumbs;
+    }
+
     // Always start with Containers
-    crumbs.push({ label: "Containers", href: "/" });
+    crumbs.push({ label: "Containers", href: "/containers" });
 
     if (segments[0] === "containers" && segments.length > 1) {
       // Container name
       const containerName = segments[1];
-      crumbs.push({ 
-        label: containerName, 
-        href: `/containers/${containerName}` 
+      crumbs.push({
+        label: containerName,
+        href: `/containers/${containerName}`
       });
 
       if (segments[2] === "services" && segments.length > 3) {
         // Service name
         const serviceName = segments[3];
-        
+
         if (segments[4] === "logs") {
           // Logs page - don't link to service page, just show it
-          crumbs.push({ 
-            label: serviceName, 
-            href: null 
+          crumbs.push({
+            label: serviceName,
+            href: null
           });
           crumbs.push({ label: "Logs", href: null });
         } else if (segments[4] === "settings") {
           // Settings page
-          crumbs.push({ 
-            label: serviceName, 
-            href: null 
+          crumbs.push({
+            label: serviceName,
+            href: null
           });
           crumbs.push({ label: "Settings", href: null });
         } else {
           // Service page (if it exists)
-          crumbs.push({ 
-            label: serviceName, 
-            href: `/containers/${containerName}/services/${serviceName}` 
+          crumbs.push({
+            label: serviceName,
+            href: `/containers/${containerName}/services/${serviceName}`
           });
         }
       } else if (segments.length === 2) {
@@ -81,7 +101,7 @@ export default function Breadcrumbs() {
     <nav className="flex items-center gap-1 text-sm" aria-label="Breadcrumb">
       {breadcrumbs.map((crumb, index) => {
         const isLast = index === breadcrumbs.length - 1;
-        
+
         return (
           <span key={index} className="flex items-center gap-1">
             {crumb.href && !isLast ? (
@@ -102,7 +122,7 @@ export default function Breadcrumbs() {
                 >
                   {crumb.label}
                 </Link>
-                <span 
+                <span
                   className="mx-1"
                   style={{ color: "var(--vscode-descriptionForeground)" }}
                 >
@@ -110,7 +130,7 @@ export default function Breadcrumbs() {
                 </span>
               </>
             ) : (
-              <span 
+              <span
                 className="font-medium"
                 style={{ color: "var(--vscode-foreground)" }}
               >
