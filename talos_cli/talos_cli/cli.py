@@ -71,6 +71,8 @@ def cmd_down(args: argparse.Namespace) -> int:
     if not compose_path.is_file():
         print(f"Compose file not found: {compose_path}", file=sys.stderr)
         return 1
+    env = os.environ.copy()
+    env["TALOS_CONFIG_FILE"] = str(_packaged_config_path())
     cmd = [
         "docker",
         "compose",
@@ -79,7 +81,7 @@ def cmd_down(args: argparse.Namespace) -> int:
         "down",
     ]
     try:
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, env=env, check=True)
     except subprocess.CalledProcessError as e:
         return e.returncode
     except FileNotFoundError:
