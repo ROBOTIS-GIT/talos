@@ -1,0 +1,36 @@
+# Talos Configuration
+# This file defines the containers that talos can control.
+#
+# Services are discovered dynamically from each agent - no need to list them here.
+# The agent (running in each container) is the source of truth for available services.
+#
+# Optional: You can add service labels for better display names in the UI.
+# If a service is not listed here, its ID will be used as the label.
+
+containers:
+  ai_worker:
+    socket_path: "/agents/ai_worker/s6_agent.sock"
+    # Optional: Service labels for better display names
+    # Services are automatically discovered from the agent at /run/service
+    # services:
+    #   - id: "ffw_bg2_follower_ai"
+    #     label: "FFW BG2 Follower AI"
+    # Optional: ROS2 topic subscription configuration
+    ros2:
+      domain_id: 30  # ROS2 domain ID (can be overridden by ROS_DOMAIN_ID env var)
+      topics:
+        /cmd_vel: "geometry_msgs/msg/Twist"
+        /leader/joint_trajectory_command_broadcaster_left/joint_trajectory: "trajectory_msgs/msg/JointTrajectory"
+        /leader/joint_trajectory_command_broadcaster_right/joint_trajectory: "trajectory_msgs/msg/JointTrajectory"
+        /leader/joystick_controller_left/joint_trajectory: "trajectory_msgs/msg/JointTrajectory"
+        /leader/joystick_controller_right/joint_trajectory: "trajectory_msgs/msg/JointTrajectory"
+        /joint_states: "sensor_msgs/msg/JointState"
+        /diagnostics: "diagnostic_msgs/msg/DiagnosticArray"
+      static_topics:
+        /robot_description: "std_msgs/msg/String"
+      # router_ip: "192.168.1.100"  # Optional: Zenoh router IP
+      # router_port: 7447  # Optional: Zenoh router port
+  physical_ai_server:
+    socket_path: "/agents/physical_ai_server/s6_agent.sock"
+    # Optional: Service labels for better display names
+    # Services are automatically discovered from the agent at /run/service
