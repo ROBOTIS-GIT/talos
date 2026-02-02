@@ -3,7 +3,7 @@ services:
     container_name: zenoh_daemon
     build:
       context: .
-      dockerfile: Dockerfile.zenoh_daemon
+      dockerfile: talos_cli/talos_cli/docker/Dockerfile.zenoh_daemon
     restart: unless-stopped
     network_mode: host
     init: true
@@ -12,7 +12,7 @@ services:
     container_name: talos
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: talos/Dockerfile.dev
     restart: unless-stopped
     network_mode: host
     volumes:
@@ -51,4 +51,3 @@ services:
       - NODE_ENV=development
       - WATCHPACK_POLLING=true
     # Note: Next.js dev server will automatically reload on code changes
-

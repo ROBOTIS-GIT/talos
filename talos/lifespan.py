@@ -82,7 +82,7 @@ async def lifespan(app: FastAPI):
                     )
                     # Continue with other containers even if one fails
 
-        logger.info("System manager initialized successfully")
+        logger.info("Talos initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize talos: {e}")
         raise
@@ -109,5 +109,5 @@ async def lifespan(app: FastAPI):
             logger.error(f"Error stopping ROS2 plugin for container '{container_name}': {e}")
     clear_ros2_plugins()
 
-    logger.info("System manager shut down")
+    logger.info("Talos shut down")
 

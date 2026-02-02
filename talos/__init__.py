@@ -1,4 +1,4 @@
-"""System Manager - Central control plane for ROS2-based robot containers.
+"""Talos - Central control plane for ROS2-based robot containers.
 
 This package provides a unified REST API to manage multiple containers
 running s6-overlay agents via Unix Domain Sockets.

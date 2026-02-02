@@ -40,7 +40,7 @@ export default function DockerPage() {
 
   if (error) {
     return (
-      <div 
+      <div
         className="border rounded p-4"
         style={{
           backgroundColor: "rgba(244, 135, 113, 0.1)",
@@ -49,13 +49,13 @@ export default function DockerPage() {
       >
         <div className="flex items-center justify-between">
           <div>
-            <h3 
+            <h3
               className="font-medium mb-1"
               style={{ color: "var(--vscode-errorForeground)" }}
             >
               Error loading Docker containers
             </h3>
-            <p 
+            <p
               className="text-sm"
               style={{ color: "var(--vscode-errorForeground)" }}
             >
@@ -90,13 +90,13 @@ export default function DockerPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 
+          <h1
             className="text-2xl font-semibold mb-2"
             style={{ color: "var(--vscode-foreground)" }}
           >
             Docker Containers
           </h1>
-          <p 
+          <p
             className="text-sm"
             style={{ color: "var(--vscode-descriptionForeground)" }}
           >
@@ -104,7 +104,7 @@ export default function DockerPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <label 
+          <label
             className="flex items-center gap-2 text-sm cursor-pointer"
             style={{ color: "var(--vscode-foreground)" }}
           >
@@ -142,7 +142,7 @@ export default function DockerPage() {
       </div>
 
       {containers.length === 0 ? (
-        <div 
+        <div
           className="p-8 text-center border rounded"
           style={{
             backgroundColor: "var(--vscode-sidebar-background)",

@@ -18,7 +18,7 @@ export default function LogViewer({
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
-  
+
   const { theme } = useTheme();
 
   const convert = useMemo(() => {
@@ -74,8 +74,8 @@ export default function LogViewer({
   return (
     <div
       className={`relative flex flex-col ${className}`}
-      style={{ 
-        height: "100%", 
+      style={{
+        height: "100%",
         minHeight: 0,
         position: "relative",
         overflow: "hidden"

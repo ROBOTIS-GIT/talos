@@ -11,12 +11,13 @@ RUN apt-get update && \
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-# Note: Source code will be mounted as volume in docker-compose
-# No need to COPY talos/ and config.yml here
+
+# Copy talos package
+COPY talos/ ./talos/
+COPY talos_cli/talos_cli/config/config.yml ./config.yml
 
 # Expose API port
 EXPOSE 8081
 
-# Run the talos API with auto-reload for development
-CMD ["uvicorn", "talos.api:app", "--host", "0.0.0.0", "--port", "8081", "--reload"]
-
+# Run the talos API
+CMD ["uvicorn", "talos.api:app", "--host", "0.0.0.0", "--port", "8081"]

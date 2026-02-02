@@ -76,20 +76,20 @@ async def get_ros2_topic_data(
             detail=f"ROS2 plugin for container '{container}' is not available. "
                    f"Check if ROS2 configuration exists in config.yml and zenoh connection.",
         )
-    
+
     if topic not in plugin.list_topics():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Topic '{topic}' is not configured for container '{container}'",
         )
-    
+
     cached_data = plugin.get_topic_data(topic)
     available = plugin.is_topic_available(topic)
-    
+
     data = None
     if cached_data:
         data = cached_data.get("data")
-    
+
     return ROS2TopicDataResponse(
         container=container,
         topic=topic,

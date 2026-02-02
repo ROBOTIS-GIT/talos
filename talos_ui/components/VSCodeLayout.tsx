@@ -21,9 +21,9 @@ export default function VSCodeLayout({
   return (
     <div style={{ height: "100vh", display: "flex", overflow: "hidden" }}>
       {/* Sidebar */}
-      <div 
+      <div
         className="flex flex-col"
-        style={{ 
+        style={{
           backgroundColor: "var(--vscode-sidebar-background)",
           borderRight: "1px solid var(--vscode-sidebar-border)",
           width: "200px",
@@ -31,15 +31,15 @@ export default function VSCodeLayout({
         }}
       >
         {/* Sidebar Header */}
-        <div 
+        <div
           className="px-4 py-3 border-b flex items-center justify-between"
           style={{ borderColor: "var(--vscode-sidebar-border)" }}
         >
-          <h1 
+          <h1
             className="text-sm font-semibold"
             style={{ color: "var(--vscode-foreground)" }}
           >
-            SYSTEM MANAGER
+            TALOS
           </h1>
           <ThemeToggle />
         </div>
@@ -47,20 +47,20 @@ export default function VSCodeLayout({
         {/* Sidebar Navigation */}
         <nav className="flex-1 py-2">
           {navItems.map((item) => {
-            const isActive = pathname === item.href || 
+            const isActive = pathname === item.href ||
               (item.href !== "/" && pathname?.startsWith(item.href));
-            
+
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className="block px-4 py-2 text-sm transition-colors"
                 style={{
-                  backgroundColor: isActive 
-                    ? "var(--vscode-list-activeSelectionBackground)" 
+                  backgroundColor: isActive
+                    ? "var(--vscode-list-activeSelectionBackground)"
                     : "transparent",
-                  color: isActive 
-                    ? "var(--vscode-foreground)" 
+                  color: isActive
+                    ? "var(--vscode-foreground)"
                     : "var(--vscode-descriptionForeground)",
                 }}
                 onMouseEnter={(e) => {
@@ -83,14 +83,14 @@ export default function VSCodeLayout({
       </div>
 
       {/* Main Content Area */}
-      <main 
+      <main
         className="flex-1 flex flex-col overflow-hidden"
         style={{ backgroundColor: "var(--vscode-editor-background)" }}
       >
         {/* Title Bar */}
-        <div 
+        <div
           className="px-4 py-2 border-b flex items-center gap-2"
-          style={{ 
+          style={{
             borderColor: "var(--vscode-panel-border)",
             backgroundColor: "var(--vscode-editor-background)"
           }}
