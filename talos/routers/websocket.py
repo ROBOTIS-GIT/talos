@@ -352,12 +352,11 @@ async def websocket_service_logs(websocket: WebSocket, container: str, service: 
         last_service_status_check = 0.0
         service_is_up = True  # Assume service is up initially
         log_service_is_up = True
-        services_stopped_notified = False
-        
+
         while True:
             try:
                 await asyncio.sleep(LOG_POLL_INTERVAL)
-                
+
                 # Check service status periodically
                 current_time = time.time()
                 if current_time - last_service_status_check >= SERVICE_STATUS_CHECK_INTERVAL:
@@ -365,37 +364,19 @@ async def websocket_service_logs(websocket: WebSocket, container: str, service: 
                         client, service, log_service_name
                     )
                     last_service_status_check = current_time
-                    
-                    # If both services are down, stop streaming
-                    if not service_is_up and not log_service_is_up:
-                        if not services_stopped_notified:
-                            logger.info(
-                                f"Both service '{service}' and log service '{log_service_name}' "
-                                f"are down in container '{container}', stopping log streaming"
-                            )
-                            if not await _send_websocket_error(
-                                websocket,
-                                f"Service '{service}' and its log service are both stopped. "
-                                f"Log streaming stopped."
-                            ):
-                                # WebSocket already closed
-                                break
-                            services_stopped_notified = True
-                        break
-                    services_stopped_notified = False  # Reset if services are up
-                
+
                 # Skip log fetching if both services are down
                 if not service_is_up and not log_service_is_up:
                     await asyncio.sleep(ERROR_RETRY_DELAY)
                     continue
-                
+
                 # Fetch new logs using cursor
                 if cursor is not None:
                     try:
                         agent_response = await client.get_service_logs(service, INITIAL_LOG_TAIL, cursor)
                         new_logs = agent_response.get("logs", "")
                         new_cursor = agent_response.get("cursor", cursor)
-                        
+
                         if new_logs and (service_is_up or log_service_is_up):
                             if not await _send_websocket_logs(websocket, new_logs):
                                 logger.info(f"WebSocket disconnected for {container}/{service}")
