@@ -224,7 +224,7 @@ export default function ContainerDetailPage() {
               <button
                 onClick={() => setShowApplicationServices(!showApplicationServices)}
                 className="flex items-center gap-2 text-lg font-medium mb-4 cursor-pointer hover:opacity-80 transition-opacity"
-                style={{ 
+                style={{
                   color: "var(--vscode-foreground)",
                   background: "none",
                   border: "none",
@@ -264,7 +264,7 @@ export default function ContainerDetailPage() {
               <button
                 onClick={() => setShowSystemServices(!showSystemServices)}
                 className="flex items-center gap-2 text-lg font-medium mb-4 cursor-pointer hover:opacity-80 transition-opacity"
-                style={{ 
+                style={{
                   color: "var(--vscode-foreground)",
                   background: "none",
                   border: "none",

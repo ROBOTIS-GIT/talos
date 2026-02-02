@@ -10,7 +10,7 @@ interface ContainerCardProps {
 export default function ContainerCard({ container }: ContainerCardProps) {
   return (
     <Link href={`/containers/${container.name}`}>
-      <div 
+      <div
         className="p-4 border rounded transition-colors cursor-pointer"
         style={{
           backgroundColor: "var(--vscode-sidebar-background)",
@@ -26,13 +26,13 @@ export default function ContainerCard({ container }: ContainerCardProps) {
       >
         <div className="flex items-center justify-between">
           <div>
-            <h3 
+            <h3
               className="text-base font-medium mb-1"
               style={{ color: "var(--vscode-foreground)" }}
             >
               {container.name}
             </h3>
-            <p 
+            <p
               className="text-xs"
               style={{ color: "var(--vscode-descriptionForeground)" }}
             >

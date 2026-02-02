@@ -36,12 +36,12 @@ export default function FixedLogPanel({
   // Limit log lines to prevent memory issues
   const limitLogLines = useCallback((logText: string): string => {
     if (!logText) return logText;
-    
+
     const lines = logText.split('\n');
     if (lines.length <= MAX_LOG_LINES) {
       return logText;
     }
-    
+
     // Keep only the most recent MAX_LOG_LINES
     const recentLines = lines.slice(-MAX_LOG_LINES);
     return recentLines.join('\n');
@@ -251,10 +251,10 @@ export default function FixedLogPanel({
       </div>
 
       {/* Content */}
-      <div style={{ 
-        flex: 1, 
-        overflow: "hidden", 
-        position: "relative", 
+      <div style={{
+        flex: 1,
+        overflow: "hidden",
+        position: "relative",
         minHeight: 0,
         display: "flex",
         flexDirection: "column"

@@ -354,7 +354,7 @@ class ROS2TopicSubscriber:
                     "received_at": received_at,
                     "seconds_since_last_message": seconds_since_last_message,
                 }
-            
+
             # Process static topics
             for topic in self.static_topics.keys():
                 cached = self.msg_cache.get(topic)
@@ -564,7 +564,7 @@ class ROS2TopicSubscriber:
 
             check_count += 1
             current_time = time.time()
-            
+
             with self.lock:
                 # Clear stale dynamic topics
                 stale_topics = []

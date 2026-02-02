@@ -31,7 +31,7 @@ export default function ServiceCard({
   };
 
   return (
-    <div 
+    <div
       className="p-4 border rounded"
       style={{
         backgroundColor: "var(--vscode-sidebar-background)",
@@ -42,7 +42,7 @@ export default function ServiceCard({
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
-            <h3 
+            <h3
               className="text-base font-medium"
               style={{ color: "var(--vscode-foreground)" }}
             >
@@ -50,14 +50,14 @@ export default function ServiceCard({
             </h3>
             <StatusBadge status={isUp} />
           </div>
-          <p 
+          <p
             className="text-xs font-mono"
             style={{ color: "var(--vscode-descriptionForeground)" }}
           >
             {service.id}
           </p>
           {status && (
-            <div 
+            <div
               className="mt-2 text-xs"
               style={{ color: "var(--vscode-descriptionForeground)" }}
             >

@@ -44,11 +44,11 @@ export default function ServiceControls({
     borderRadius: "2px",
     cursor: loading !== null ? "not-allowed" : "pointer",
     opacity: loading !== null ? 0.5 : 1,
-    backgroundColor: isPrimary 
-      ? "var(--vscode-button-background)" 
+    backgroundColor: isPrimary
+      ? "var(--vscode-button-background)"
       : "var(--vscode-button-secondaryBackground)",
-    color: isPrimary 
-      ? "var(--vscode-button-foreground)" 
+    color: isPrimary
+      ? "var(--vscode-button-foreground)"
       : "var(--vscode-button-secondaryForeground)",
     transition: "background-color 0.2s",
   });

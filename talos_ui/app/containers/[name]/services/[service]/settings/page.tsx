@@ -74,11 +74,11 @@ export default function ServiceSettingsPage() {
     borderRadius: "2px",
     cursor: saving ? "not-allowed" : "pointer",
     opacity: saving ? 0.5 : 1,
-    backgroundColor: isPrimary 
-      ? "var(--vscode-button-background)" 
+    backgroundColor: isPrimary
+      ? "var(--vscode-button-background)"
       : "var(--vscode-button-secondaryBackground)",
-    color: isPrimary 
-      ? "var(--vscode-button-foreground)" 
+    color: isPrimary
+      ? "var(--vscode-button-foreground)"
       : "var(--vscode-button-secondaryForeground)",
     transition: "background-color 0.2s",
   });
@@ -98,13 +98,13 @@ export default function ServiceSettingsPage() {
       <div className="mb-6 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 
+            <h1
               className="text-2xl font-semibold mb-2"
               style={{ color: "var(--vscode-foreground)" }}
             >
               Service Settings
             </h1>
-            <p 
+            <p
               className="text-sm"
               style={{ color: "var(--vscode-descriptionForeground)" }}
             >
@@ -113,7 +113,7 @@ export default function ServiceSettingsPage() {
           </div>
           <div className="flex items-center gap-2">
             {hasChanges && (
-              <span 
+              <span
                 className="text-xs"
                 style={{ color: "var(--vscode-warningForeground)" }}
               >
@@ -121,7 +121,7 @@ export default function ServiceSettingsPage() {
               </span>
             )}
             {success && (
-              <span 
+              <span
                 className="text-xs"
                 style={{ color: "var(--vscode-successForeground)" }}
               >
@@ -162,7 +162,7 @@ export default function ServiceSettingsPage() {
         </div>
 
         {error && (
-          <div 
+          <div
             className="border rounded p-4 mb-4"
             style={{
               backgroundColor: "rgba(244, 135, 113, 0.1)",
@@ -171,13 +171,13 @@ export default function ServiceSettingsPage() {
           >
             <div className="flex items-center justify-between">
               <div>
-                <h3 
+                <h3
                   className="font-medium mb-1"
                   style={{ color: "var(--vscode-errorForeground)" }}
                 >
                   Error
                 </h3>
-                <p 
+                <p
                   className="text-sm"
                   style={{ color: "var(--vscode-errorForeground)" }}
                 >
@@ -202,7 +202,7 @@ export default function ServiceSettingsPage() {
       </div>
 
       <div className="flex-1 min-h-0 flex flex-col">
-        <div 
+        <div
           className="mb-2 text-xs font-medium"
           style={{ color: "var(--vscode-descriptionForeground)" }}
         >

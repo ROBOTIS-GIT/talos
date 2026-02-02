@@ -121,17 +121,17 @@ export default function DockerContainerCard({
     borderRadius: "2px",
     cursor: loading !== null ? "not-allowed" : "pointer",
     opacity: loading !== null ? 0.5 : 1,
-    backgroundColor: isPrimary 
-      ? "var(--vscode-button-background)" 
+    backgroundColor: isPrimary
+      ? "var(--vscode-button-background)"
       : "var(--vscode-button-secondaryBackground)",
-    color: isPrimary 
-      ? "var(--vscode-button-foreground)" 
+    color: isPrimary
+      ? "var(--vscode-button-foreground)"
       : "var(--vscode-button-secondaryForeground)",
     transition: "background-color 0.2s",
   });
 
   return (
-    <div 
+    <div
       className="p-4 border rounded"
       style={{
         backgroundColor: "var(--vscode-sidebar-background)",
@@ -142,7 +142,7 @@ export default function DockerContainerCard({
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
-            <h3 
+            <h3
               className="text-base font-medium"
               style={{ color: "var(--vscode-foreground)" }}
             >
@@ -150,19 +150,19 @@ export default function DockerContainerCard({
             </h3>
             <StatusBadge status={container.status} />
           </div>
-          <p 
+          <p
             className="text-xs font-mono mb-1"
             style={{ color: "var(--vscode-descriptionForeground)" }}
           >
             {container.id.substring(0, 12)}
           </p>
-          <p 
+          <p
             className="text-xs"
             style={{ color: "var(--vscode-foreground)" }}
           >
             {container.image}
           </p>
-          <p 
+          <p
             className="text-xs mt-1"
             style={{ color: "var(--vscode-descriptionForeground)" }}
           >
@@ -240,7 +240,7 @@ export default function DockerContainerCard({
       </div>
 
       {error && (
-        <div 
+        <div
           className="mt-2 text-xs px-2 py-1 rounded"
           style={{
             color: "var(--vscode-errorForeground)",

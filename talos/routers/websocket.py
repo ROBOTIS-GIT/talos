@@ -106,7 +106,7 @@ async def _check_service_status(
     client, service: str, log_service_name: str
 ) -> Tuple[bool, bool]:
     """Check status of main service and log service.
-    
+
     Returns:
         Tuple of (service_is_up, log_service_is_up)
     """
@@ -115,14 +115,14 @@ async def _check_service_status(
         service_is_up = status_response.get("is_up", False)
     except Exception:
         service_is_up = False
-    
+
     log_service_is_up = True  # Default to True if log service doesn't exist
     try:
         log_status_response = await client.get_service_status(log_service_name)
         log_service_is_up = log_status_response.get("is_up", False)
     except Exception:
         pass  # Log service might not exist, which is fine
-    
+
     return service_is_up, log_service_is_up
 
 
@@ -132,14 +132,14 @@ async def _check_service_status(
 
 def _get_topic_msg_type(plugin: Any, topic: str) -> str:
     """Get message type for a topic (check both topics and static_topics).
-    
+
     Args:
         plugin: ROS2TopicSubscriber plugin.
         topic: Topic name.
-        
+
     Returns:
         Message type string.
-        
+
     Raises:
         KeyError: If topic is not found in either topics or static_topics.
     """
@@ -161,9 +161,9 @@ async def _poll_and_send_single_topic_data(
     min_interval: float
 ) -> Tuple[bool, float, Optional[int]]:
     """Poll for single topic data and send if changed (with throttling).
-    
+
     This is optimized for single-topic WebSocket connections.
-    
+
     Args:
         websocket: WebSocket connection.
         container: Container name.
@@ -207,7 +207,7 @@ async def _poll_and_send_single_topic_data(
             return success, current_time, data_hash
     elif not available:
         # Topic became unavailable or no data yet
-        # Send notification if this is the first check (last_sent_data_hash is None) 
+        # Send notification if this is the first check (last_sent_data_hash is None)
         # or if we had data before (last_sent_data_hash is not None)
         if last_sent_data_hash is None:
             # First time checking - send initial unavailable status
@@ -239,7 +239,7 @@ async def _poll_and_send_single_topic_data(
             return success, current_time, -1
         # If last_sent_data_hash is -1, we already sent unavailable status, don't send again
         return True, last_send_time, last_sent_data_hash
-    
+
     return True, last_send_time, last_sent_data_hash  # No change
 
 
@@ -314,7 +314,7 @@ async def websocket_service_logs(websocket: WebSocket, container: str, service: 
             if initial_logs:
                 if not await _send_websocket_logs(websocket, initial_logs):
                     return  # Connection broken
-            
+
             # IMPORTANT: After sending initial logs, refresh cursor to current file size
             # to prevent duplicate logs. The initial cursor was set when fetching tail logs,
             # but new logs might have been added between fetching and sending.
@@ -402,7 +402,7 @@ async def websocket_service_logs(websocket: WebSocket, container: str, service: 
                         agent_response = await client.get_service_logs(service, FALLBACK_LOG_TAIL)
                         current_logs = agent_response.get("logs", "")
                         new_cursor = agent_response.get("cursor")
-                        
+
                         # If we got a cursor, use it for next iteration (switch to cursor-based method)
                         if new_cursor is not None:
                             cursor = new_cursor
@@ -433,7 +433,7 @@ async def websocket_service_logs(websocket: WebSocket, container: str, service: 
                         )
                         await asyncio.sleep(ERROR_RETRY_DELAY)
                         continue
-                    
+
             except WebSocketDisconnect:
                 logger.info(f"WebSocket disconnected for {container}/{service}")
                 break
@@ -445,7 +445,7 @@ async def websocket_service_logs(websocket: WebSocket, container: str, service: 
                 if not await _send_websocket_error(websocket, f"Error streaming logs: {str(e)}"):
                     break
                 await asyncio.sleep(ERROR_RETRY_DELAY)
-                
+
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected normally for {container}/{service}")
     except Exception as e:
@@ -535,18 +535,18 @@ async def websocket_ros2_topic_data(websocket: WebSocket, container: str, topic:
             # so high-frequency polling is not necessary.
             while True:
                 await asyncio.sleep(min(LOG_POLL_INTERVAL, min_interval))
-                
+
                 connection_alive, new_last_send_time, new_last_sent_data_hash = (
                     await _poll_and_send_single_topic_data(
                         websocket, container, plugin, topic,
                         last_send_time, last_sent_data_hash, min_interval
                     )
                 )
-                
+
                 if not connection_alive:
                     logger.info(f"WebSocket disconnected for {container}/ros2/{topic}")
                     return
-                
+
                 # Update state
                 last_send_time = new_last_send_time
                 last_sent_data_hash = new_last_sent_data_hash
@@ -555,7 +555,7 @@ async def websocket_ros2_topic_data(websocket: WebSocket, container: str, topic:
             logger.info(f"WebSocket disconnected for {container}/ros2/{topic}")
         except Exception as e:
             logger.error(f"Error in WebSocket loop for {container}/ros2/{topic}: {e}")
-                
+
     except HTTPException as e:
         await _send_websocket_error(websocket, e.detail or "Unknown error")
         await _close_websocket_ignoring_error(websocket)

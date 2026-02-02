@@ -93,7 +93,7 @@ export default function Robot3DViewer({
 
          const groundSize = 20;
          const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
-         const groundMaterial = new THREE.MeshStandardMaterial({ 
+         const groundMaterial = new THREE.MeshStandardMaterial({
            color: 0x333333,
            roughness: 0.8,
            metalness: 0.2
@@ -165,15 +165,15 @@ export default function Robot3DViewer({
 
     try {
       const manager = new THREE.LoadingManager();
-      
+
       let loadedCount = 0;
       let errorCount = 0;
-      
+
       manager.onLoad = () => {
         console.log("[Robot3DViewer] All meshes loaded! Adjusting camera...");
-        
+
         const robot = sceneRef.current?.children.find((c) => c.userData.isUrdfRobot);
-        
+
         if (robot && cameraRef.current && controlsRef.current && rendererRef.current) {
           const box = new THREE.Box3().setFromObject(robot);
           if (!box.isEmpty()) {
@@ -181,13 +181,13 @@ export default function Robot3DViewer({
             const size = box.getSize(new THREE.Vector3());
             const maxDim = Math.max(size.x, size.y, size.z, 1);
             const distance = maxDim * 2.5;
-            
+
             console.log("[Robot3DViewer] Camera adjustment:", {
               center: center.toArray(),
               size: size.toArray(),
               distance,
             });
-            
+
             cameraRef.current.position.set(
               center.x + distance * 0.7,
               center.y + distance * 0.7,
@@ -195,22 +195,22 @@ export default function Robot3DViewer({
             );
             cameraRef.current.lookAt(center);
             cameraRef.current.updateProjectionMatrix();
-            
+
             controlsRef.current.target.copy(center);
             controlsRef.current.update();
-            
+
             if (sceneRef.current) {
               rendererRef.current.render(sceneRef.current, cameraRef.current);
             }
           }
         }
       };
-      
+
       manager.onProgress = (url, loaded, total) => {
         loadedCount = loaded;
         console.log(`[Robot3DViewer] Loading progress: ${loaded}/${total} - ${url}`);
       };
-      
+
       manager.onError = (url) => {
         errorCount++;
         console.error(`[Robot3DViewer] Failed to load asset: ${url}`);
@@ -221,20 +221,20 @@ export default function Robot3DViewer({
       loader.packages = {
         'ffw_description': '/assets/ffw_description',
       };
-      
+
       console.log("[Robot3DViewer] Package mapping:", loader.packages);
       console.log("[Robot3DViewer] Testing mesh path:", '/assets/ffw_description/meshes/ffw_sg2_rev1_follower/base_mobile_assy.stl');
 
       const robot = loader.parse(robotDescription);
       robot.userData.isUrdfRobot = true;
-      
+
       console.log("[Robot3DViewer] URDF parsed successfully");
       console.log("[Robot3DViewer] Robot children count:", robot.children.length);
       console.log("[Robot3DViewer] Robot position:", robot.position);
       console.log("[Robot3DViewer] Robot rotation:", robot.rotation);
-      
+
       robot.rotation.x = -Math.PI / 2;
-      
+
       if (sceneRef.current) {
         sceneRef.current.add(robot);
         console.log("[Robot3DViewer] Robot added to scene, waiting for meshes to load...");
