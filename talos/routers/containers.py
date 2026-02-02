@@ -11,13 +11,13 @@ router = APIRouter(prefix="/containers", tags=["containers"])
     "",
     response_model=ContainerListResponse,
     summary="List all known containers",
-    description="Retrieve a list of all containers configured in the system manager",
+    description="Retrieve a list of all containers configured in Talos",
     response_description="List of containers with their names and socket paths",
 )
 async def list_containers(config=Depends(get_config)) -> ContainerListResponse:
     """Get list of all known containers from configuration.
 
-    Returns a list of all containers that are configured in the system manager's
+    Returns a list of all containers that are configured in Talos's
     configuration file. Each container entry includes its name and the path to
     its agent's Unix Domain Socket.
 

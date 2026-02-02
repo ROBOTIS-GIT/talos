@@ -25,7 +25,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="System Manager API",
+    title="Talos API",
     description="""
     Unified REST API for managing ROS2-based robot containers using s6-overlay.
 

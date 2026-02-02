@@ -18,7 +18,7 @@ async def root():
         API metadata including version and links to interactive documentation.
     """
     return {
-        "message": "System Manager API",
+        "message": "Talos API",
         "version": "0.1.0",
         "docs": {
             "swagger_ui": "/docs",

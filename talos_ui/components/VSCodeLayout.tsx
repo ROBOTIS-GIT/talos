@@ -39,7 +39,7 @@ export default function VSCodeLayout({
             className="text-sm font-semibold"
             style={{ color: "var(--vscode-foreground)" }}
           >
-            SYSTEM MANAGER
+            TALOS
           </h1>
           <ThemeToggle />
         </div>

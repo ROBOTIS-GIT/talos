@@ -92,7 +92,7 @@ export default function Breadcrumbs() {
   if (breadcrumbs.length <= 1) {
     return (
       <span className="text-sm font-medium" style={{ color: "var(--vscode-foreground)" }}>
-        {breadcrumbs[0]?.label || "System Manager"}
+        {breadcrumbs[0]?.label || "Talos"}
       </span>
     );
   }

@@ -4,7 +4,7 @@ import VSCodeLayout from "@/components/VSCodeLayout";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 
 export const metadata: Metadata = {
-  title: "System Manager",
+  title: "Talos",
   description: "Manage ROS2-based robot containers and services",
 };
 
