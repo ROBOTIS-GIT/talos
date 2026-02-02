@@ -14,7 +14,7 @@ export default function VSCodeLayout({
 
   const navItems = [
     { href: "/robot", label: "Robot", icon: "🤖" },
-    { href: "/", label: "Containers", icon: "📦" },
+    { href: "/containers", label: "Containers", icon: "📦" },
     { href: "/docker", label: "Docker", icon: "🐳" },
   ];
 
