@@ -495,10 +495,7 @@ export default function RobotContainerPage() {
       {/* 3D Robot Viewer and Panels Layout */}
       <div className="flex gap-4 mb-6" style={{ alignItems: "flex-start" }}>
         <div style={{ flexShrink: 0 }}>
-          <Robot3DViewer
-            container={container}
-            topic="/robot_description"
-          />
+          <Robot3DViewer container={container} />
         </div>
 
         {showLogs && !selectedTopic && !showLeaderLogs && (
