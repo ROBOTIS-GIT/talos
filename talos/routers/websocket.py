@@ -365,10 +365,10 @@ async def websocket_service_logs(websocket: WebSocket, container: str, service: 
                     )
                     last_service_status_check = current_time
 
-                # Skip log fetching if both services are down
-                if not service_is_up and not log_service_is_up:
-                    await asyncio.sleep(ERROR_RETRY_DELAY)
-                    continue
+                # # Skip log fetching if both services are down
+                # if not service_is_up and not log_service_is_up:
+                #     await asyncio.sleep(ERROR_RETRY_DELAY)
+                #     continue
 
                 # Fetch new logs using cursor
                 if cursor is not None:

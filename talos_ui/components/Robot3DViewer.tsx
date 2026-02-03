@@ -8,15 +8,128 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 // @ts-ignore
 import URDFLoader from "urdf-loader";
 
+// -----------------------------------------------------------------------------
+// Constants
+// -----------------------------------------------------------------------------
+const CANVAS_WIDTH = 500;
+const CANVAS_HEIGHT = 400;
+const SCENE_BACKGROUND = 0x1e1e1e;
+const CAMERA_FOV = 50;
+const CAMERA_NEAR = 0.1;
+const CAMERA_FAR = 1000;
+const CAMERA_INITIAL_POSITION = { x: 1.5, y: 1.5, z: 1.5 };
+const GROUND_SIZE = 20;
+const GRID_DIVISIONS = 20;
+const AXES_SIZE = 2;
+const CAMERA_DISTANCE_MULTIPLIER = 2.5;
+const CAMERA_POSITION_OFFSET = 0.7;
+const URDF_MIN_STRING_LENGTH = 100;
+const ROBOT_ROTATION_X = -Math.PI / 2;
+
+const URDF_LOADER_PACKAGES: Record<string, string> = {
+  ffw_description: "/assets/ffw_description",
+};
+
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
+type URDFRobotRef = {
+  setJointValue: (name: string, ...values: number[]) => boolean;
+  setJointValues: (values: Record<string, number | number[]>) => boolean;
+} | null;
+
 interface Robot3DViewerProps {
   container: string;
-  topic: string;
+  robotDescriptionTopic?: string;
+  jointStatesTopic?: string;
   className?: string;
 }
 
+// -----------------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------------
+function extractRobotDescriptionString(data: unknown): string | null {
+  if (!data) return null;
+  if (typeof data === "string") return data;
+  if (typeof data === "object" && data !== null) {
+    const obj = data as Record<string, unknown>;
+    if (obj.data && typeof obj.data === "string") return obj.data;
+    for (const value of Object.values(obj)) {
+      if (typeof value === "string" && value.length > URDF_MIN_STRING_LENGTH) {
+        return value;
+      }
+    }
+  }
+  return null;
+}
+
+function parseJointStateToValues(data: unknown): Record<string, number> | null {
+  const raw = data;
+  const msg = typeof raw === "string" ? JSON.parse(raw) : raw;
+  if (!msg || typeof msg !== "object") return null;
+  const m = msg as Record<string, unknown>;
+  const names: string[] = (m.name as string[]) ?? (m.names as string[]) ?? [];
+  const positions: number[] = (m.position as number[]) ?? (m.positions as number[]) ?? [];
+  if (names.length === 0 || positions.length !== names.length) return null;
+  const values: Record<string, number> = {};
+  names.forEach((name: string, i: number) => {
+    values[name] = Number(positions[i]);
+  });
+  return values;
+}
+
+function removeUrdfRobotsFromScene(scene: THREE.Scene): void {
+  const toRemove: THREE.Object3D[] = [];
+  scene.traverse((c) => {
+    if (c.userData.isUrdfRobot) toRemove.push(c);
+  });
+  toRemove.forEach((c) => {
+    scene.remove(c);
+    c.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        if (Array.isArray(child.material)) {
+          child.material.forEach((mat) => mat.dispose());
+        } else {
+          child.material.dispose();
+        }
+      }
+    });
+  });
+}
+
+function fitCameraToRobot(
+  robot: THREE.Object3D,
+  camera: THREE.PerspectiveCamera,
+  controls: OrbitControls,
+  renderer: THREE.WebGLRenderer,
+  scene: THREE.Scene
+): void {
+  const box = new THREE.Box3().setFromObject(robot);
+  if (box.isEmpty()) return;
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z, 1);
+  const distance = maxDim * CAMERA_DISTANCE_MULTIPLIER;
+  camera.position.set(
+    center.x + distance * CAMERA_POSITION_OFFSET,
+    center.y + distance * CAMERA_POSITION_OFFSET,
+    center.z + distance * CAMERA_POSITION_OFFSET
+  );
+  camera.lookAt(center);
+  camera.updateProjectionMatrix();
+  controls.target.copy(center);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// -----------------------------------------------------------------------------
+// Component
+// -----------------------------------------------------------------------------
 export default function Robot3DViewer({
   container,
-  topic,
+  robotDescriptionTopic = "/robot_description",
+  jointStatesTopic = "/joint_states",
   className = "",
 }: Robot3DViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -25,233 +138,174 @@ export default function Robot3DViewer({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const robotRef = useRef<URDFRobotRef>(null);
   const [robotDescription, setRobotDescription] = useState<string | null>(null);
 
-  const { topicData } = useROS2TopicWebSocket(container, topic, {
+  const { topicData: robotDescriptionData } = useROS2TopicWebSocket(container, robotDescriptionTopic, {
     onError: (err) => console.error("[Robot3DViewer] WebSocket error:", err),
   });
 
+  const { topicData: jointStatesData } = useROS2TopicWebSocket(container, jointStatesTopic, {
+    onError: (err) => console.error("[Robot3DViewer] joint_states WebSocket error:", err),
+  });
+
+  // Parse robot description from topic data
   useEffect(() => {
-    if (!topicData || !topicData.available) return;
-
+    if (!robotDescriptionData?.available) return;
     try {
-      const data = topicData.data;
-      let robotDescriptionStr: string | null = null;
-
-      if (data) {
-        if (typeof data === "string") {
-          robotDescriptionStr = data;
-        } else if (typeof data === "object" && data !== null) {
-          if (data.data && typeof data.data === "string") {
-            robotDescriptionStr = data.data;
-          } else {
-            const values = Object.values(data);
-            for (const value of values) {
-              if (typeof value === "string" && value.length > 100) {
-                robotDescriptionStr = value;
-                break;
-              }
-            }
-          }
-        }
-      }
-
-      if (robotDescriptionStr && robotDescriptionStr.length > 0) {
-        setRobotDescription((prev) => {
-          if (prev === robotDescriptionStr) {
-            return prev;
-          }
-          return robotDescriptionStr;
-        });
+      const str = extractRobotDescriptionString(robotDescriptionData.data);
+      if (str?.length) {
+        setRobotDescription((prev) => (prev === str ? prev : str));
       }
     } catch (e) {
       console.error("[Robot3DViewer] Error parsing topic data:", e);
     }
-  }, [topicData]);
+  }, [robotDescriptionData]);
 
+  // Apply joint_states to robot
   useEffect(() => {
-    if (containerRef.current && !rendererRef.current) {
-        const width = 500; const height = 400;
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x1e1e1e);
-        sceneRef.current = scene;
-
-        const camera = new THREE.PerspectiveCamera(50, width/height, 0.1, 1000);
-        camera.position.set(1.5, 1.5, 1.5);
-        cameraRef.current = camera;
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(width, height);
-        containerRef.current.appendChild(renderer.domElement);
-        rendererRef.current = renderer;
-
-         scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-         const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-         dirLight.position.set(5, 10, 5);
-         dirLight.castShadow = true;
-         scene.add(dirLight);
-
-         const groundSize = 20;
-         const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
-         const groundMaterial = new THREE.MeshStandardMaterial({
-           color: 0x333333,
-           roughness: 0.8,
-           metalness: 0.2
-         });
-         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-         ground.rotation.x = -Math.PI / 2;
-         ground.position.y = 0;
-         ground.receiveShadow = true;
-         scene.add(ground);
-
-         const gridHelper = new THREE.GridHelper(groundSize, 20, 0x888888, 0x444444);
-         gridHelper.position.y = 0.01;
-         scene.add(gridHelper);
-
-         const axesHelper = new THREE.AxesHelper(2);
-         scene.add(axesHelper);
-
-         renderer.shadowMap.enabled = true;
-         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-         const controls = new OrbitControls(camera, renderer.domElement);
-        controlsRef.current = controls;
-
-        const animate = () => {
-            animationFrameRef.current = requestAnimationFrame(animate);
-            controls.update();
-            renderer.render(scene, camera);
-        };
-        animate();
+    if (!jointStatesData?.available || !jointStatesData?.data || !robotRef.current) return;
+    try {
+      const values = parseJointStateToValues(jointStatesData.data);
+      if (values) robotRef.current.setJointValues(values);
+    } catch (e) {
+      console.error("[Robot3DViewer] Error applying joint_states:", e);
     }
+  }, [jointStatesData]);
+
+  // Init scene, camera, renderer, controls, animation loop
+  useEffect(() => {
+    const containerEl = containerRef.current;
+    if (!containerEl || rendererRef.current) return;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(SCENE_BACKGROUND);
+    sceneRef.current = scene;
+
+    const camera = new THREE.PerspectiveCamera(
+      CAMERA_FOV,
+      CANVAS_WIDTH / CANVAS_HEIGHT,
+      CAMERA_NEAR,
+      CAMERA_FAR
+    );
+    camera.position.set(
+      CAMERA_INITIAL_POSITION.x,
+      CAMERA_INITIAL_POSITION.y,
+      CAMERA_INITIAL_POSITION.z
+    );
+    cameraRef.current = camera;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(CANVAS_WIDTH, CANVAS_HEIGHT);
+    containerEl.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+    dirLight.position.set(5, 10, 5);
+    dirLight.castShadow = true;
+    scene.add(dirLight);
+
+    const groundGeometry = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
+    const groundMaterial = new THREE.MeshStandardMaterial({
+      color: 0x333333,
+      roughness: 0.8,
+      metalness: 0.2,
+    });
+    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    const gridHelper = new THREE.GridHelper(GROUND_SIZE, GRID_DIVISIONS, 0x888888, 0x444444);
+    gridHelper.position.y = 0.01;
+    scene.add(gridHelper);
+
+    const axesHelper = new THREE.AxesHelper(AXES_SIZE);
+    scene.add(axesHelper);
+
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controlsRef.current = controls;
+
+    const animate = () => {
+      animationFrameRef.current = requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    };
+    animate();
 
     return () => {
+      if (animationFrameRef.current != null) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      controls.dispose();
+      renderer.dispose();
+      if (containerEl && renderer.domElement.parentNode === containerEl) {
+        containerEl.removeChild(renderer.domElement);
+      }
+      sceneRef.current = null;
+      rendererRef.current = null;
+      cameraRef.current = null;
+      controlsRef.current = null;
     };
   }, []);
 
+  // Load URDF and add robot to scene
   useEffect(() => {
-    if (!robotDescription || !sceneRef.current || !cameraRef.current || !rendererRef.current) {
-      console.log("[Robot3DViewer] URDF effect skipped:", {
-        hasRobotDescription: !!robotDescription,
-        hasScene: !!sceneRef.current,
-        hasCamera: !!cameraRef.current,
-        hasRenderer: !!rendererRef.current,
-      });
-      return;
-    }
+    const scene = sceneRef.current;
+    const camera = cameraRef.current;
+    const renderer = rendererRef.current;
+    const controls = controlsRef.current;
 
-    console.log("[Robot3DViewer] Starting URDF load, length:", robotDescription.length);
+    if (!robotDescription || !scene || !camera || !renderer || !controls) return;
 
-    const toRemove: THREE.Object3D[] = [];
-    sceneRef.current.traverse((c) => {
-      if (c.userData.isUrdfRobot) {
-        toRemove.push(c);
-      }
-    });
-    toRemove.forEach((c) => {
-      sceneRef.current?.remove(c);
-      c.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          child.geometry.dispose();
-          if (Array.isArray(child.material)) {
-            child.material.forEach((mat) => mat.dispose());
-          } else {
-            child.material.dispose();
-          }
-        }
-      });
-    });
-    console.log("[Robot3DViewer] Removed", toRemove.length, "previous robot(s)");
+    robotRef.current = null;
+    removeUrdfRobotsFromScene(scene);
 
     try {
       const manager = new THREE.LoadingManager();
 
-      let loadedCount = 0;
-      let errorCount = 0;
-
       manager.onLoad = () => {
-        console.log("[Robot3DViewer] All meshes loaded! Adjusting camera...");
-
-        const robot = sceneRef.current?.children.find((c) => c.userData.isUrdfRobot);
-
-        if (robot && cameraRef.current && controlsRef.current && rendererRef.current) {
-          const box = new THREE.Box3().setFromObject(robot);
-          if (!box.isEmpty()) {
-            const center = box.getCenter(new THREE.Vector3());
-            const size = box.getSize(new THREE.Vector3());
-            const maxDim = Math.max(size.x, size.y, size.z, 1);
-            const distance = maxDim * 2.5;
-
-            console.log("[Robot3DViewer] Camera adjustment:", {
-              center: center.toArray(),
-              size: size.toArray(),
-              distance,
-            });
-
-            cameraRef.current.position.set(
-              center.x + distance * 0.7,
-              center.y + distance * 0.7,
-              center.z + distance * 0.7
-            );
-            cameraRef.current.lookAt(center);
-            cameraRef.current.updateProjectionMatrix();
-
-            controlsRef.current.target.copy(center);
-            controlsRef.current.update();
-
-            if (sceneRef.current) {
-              rendererRef.current.render(sceneRef.current, cameraRef.current);
-            }
-          }
+        const robot = scene.children.find((c) => c.userData.isUrdfRobot);
+        if (robot && camera && controls && renderer) {
+          fitCameraToRobot(robot, camera, controls, renderer, scene);
         }
       };
 
       manager.onProgress = (url, loaded, total) => {
-        loadedCount = loaded;
-        console.log(`[Robot3DViewer] Loading progress: ${loaded}/${total} - ${url}`);
+        console.log(`[Robot3DViewer] Loading ${loaded}/${total} - ${url}`);
       };
 
       manager.onError = (url) => {
-        errorCount++;
         console.error(`[Robot3DViewer] Failed to load asset: ${url}`);
       };
 
       const loader = new URDFLoader(manager);
-
-      loader.packages = {
-        'ffw_description': '/assets/ffw_description',
-      };
-
-      console.log("[Robot3DViewer] Package mapping:", loader.packages);
-      console.log("[Robot3DViewer] Testing mesh path:", '/assets/ffw_description/meshes/ffw_sg2_rev1_follower/base_mobile_assy.stl');
+      loader.packages = URDF_LOADER_PACKAGES;
 
       const robot = loader.parse(robotDescription);
       robot.userData.isUrdfRobot = true;
+      robotRef.current = robot as unknown as NonNullable<URDFRobotRef>;
+      robot.rotation.x = ROBOT_ROTATION_X;
 
-      console.log("[Robot3DViewer] URDF parsed successfully");
-      console.log("[Robot3DViewer] Robot children count:", robot.children.length);
-      console.log("[Robot3DViewer] Robot position:", robot.position);
-      console.log("[Robot3DViewer] Robot rotation:", robot.rotation);
-
-      robot.rotation.x = -Math.PI / 2;
-
-      if (sceneRef.current) {
-        sceneRef.current.add(robot);
-        console.log("[Robot3DViewer] Robot added to scene, waiting for meshes to load...");
-      }
-
+      scene.add(robot);
     } catch (error) {
       console.error("[Robot3DViewer] URDF Loading Error:", error);
-      if (error instanceof Error) {
-        console.error("[Robot3DViewer] Error message:", error.message);
-        console.error("[Robot3DViewer] Error stack:", error.stack);
-      }
     }
   }, [robotDescription]);
 
   return (
-    <div className={`relative border rounded overflow-hidden ${className}`} style={{width:"500px", height:"400px"}}>
-        <div ref={containerRef} style={{width:"100%", height:"100%"}} />
+    <div
+      className={`relative border rounded overflow-hidden ${className}`}
+      style={{ width: `${CANVAS_WIDTH}px`, height: `${CANVAS_HEIGHT}px` }}
+    >
+      <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
     </div>
   );
 }
