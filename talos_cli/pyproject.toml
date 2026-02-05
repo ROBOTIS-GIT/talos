@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "talos-system-manager"
-version = "0.1.1"
+version = "0.1.2"
 description = "Talos CLI: pip-installable launcher for talos server and UI containers. Run 'talos up' to start Docker stack."
 readme = "README.md"
 license = "Apache-2.0"

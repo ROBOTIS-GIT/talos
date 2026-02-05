@@ -12,7 +12,7 @@ pip install .
 
 # Or install from wheel (recommended if `talos` command is not found)
 python -m build --wheel
-pip install dist/talos_cli-0.1.1-py3-none-any.whl
+pip install dist/talos_cli-0.1.2-py3-none-any.whl
 
 # If published on PyPI
 pip install talos-cli

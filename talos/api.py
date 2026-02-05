@@ -48,7 +48,7 @@ app = FastAPI(
     * **ReDoc**: Available at `/redoc` (alternative documentation)
     * **OpenAPI Schema**: Available at `/openapi.json`
     """,
-    version="0.1.1",
+    version="0.1.2",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
