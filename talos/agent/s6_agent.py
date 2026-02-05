@@ -24,11 +24,10 @@ app = FastAPI(
     s6-overlay services running in the container.
     """,
     version="0.1.0",
-    docs_url=None,  # Disable docs for security (Unix socket only)
+    docs_url=None,
     redoc_url=None,
     openapi_url=None,
 )
-
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc: HTTPException):
@@ -38,12 +37,10 @@ async def http_exception_handler(request, exc: HTTPException):
         content=ErrorResponse(error=exc.detail or "Unknown error").model_dump(),
     )
 
-
 @app.get("/", tags=["root"])
 async def root():
     """Root endpoint."""
     return {"message": "s6 Agent API", "version": "0.1.0"}
-
 
 # Include routers
 app.include_router(services.router)

@@ -24,6 +24,11 @@ export default function Breadcrumbs() {
       return crumbs;
     }
 
+    if (pathname === "/novnc") {
+      crumbs.push({ label: "noVNC", href: null });
+      return crumbs;
+    }
+
     // Parse path segments
     const segments = pathname.split("/").filter(Boolean);
 

@@ -16,6 +16,7 @@ export default function VSCodeLayout({
     { href: "/robot", label: "Robot", icon: "🤖" },
     { href: "/containers", label: "Containers", icon: "📦" },
     { href: "/docker", label: "Docker", icon: "🐳" },
+    { href: "/novnc", label: "noVNC", icon: "🖥️" },
   ];
 
   return (
