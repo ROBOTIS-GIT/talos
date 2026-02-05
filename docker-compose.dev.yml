@@ -71,8 +71,6 @@ services:
       - DISPLAY_WIDTH=1920
       - DISPLAY_HEIGHT=1080
       - WEBSOCKIFY_PORT=8090
-    ports:
-      - "8090:8090"
     volumes:
       - /dev:/dev
       - /dev/shm:/dev/shm
