@@ -51,3 +51,29 @@ services:
       - NODE_ENV=development
       - WATCHPACK_POLLING=true
     # Note: Next.js dev server will automatically reload on code changes
+
+  novnc-server:
+    container_name: novnc-server
+    build:
+      context: novnc
+      dockerfile: docker/Dockerfile.amd64
+    restart: unless-stopped
+    cap_add:
+      - SYS_NICE
+    ulimits:
+      rtprio: 99
+      rttime: -1
+      memlock: 8428281856
+    network_mode: host
+    environment:
+      - ROS_DOMAIN_ID=30
+      - DISPLAY=:0.0
+      - DISPLAY_WIDTH=1920
+      - DISPLAY_HEIGHT=1080
+      - WEBSOCKIFY_PORT=8090
+    ports:
+      - "8090:8090"
+    volumes:
+      - /dev:/dev
+      - /dev/shm:/dev/shm
+    privileged: true
