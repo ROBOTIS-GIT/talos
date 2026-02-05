@@ -19,7 +19,7 @@ async def root():
     """
     return {
         "message": "Talos API",
-        "version": "0.1.0",
+        "version": "0.1.1",
         "docs": {
             "swagger_ui": "/docs",
             "redoc": "/redoc",
